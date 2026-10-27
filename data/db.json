@@ -1,0 +1,686 @@
+{
+  "users": [
+    {
+      "id": "usr-vasavi-01",
+      "name": "Praveen Kumar",
+      "rollNumber": "25A81A4300",
+      "branch": "Artificial Intelligence & Data Science (AI & DS)",
+      "mobile": "9876543210",
+      "year": "2nd Year",
+      "shareMobilePublicly": false,
+      "passwordHash": "1d696dfea2b8a8b1500bf53691402331:2feea6bc295bfccebcb806e8c5bdc485da7744e3cfc8d821d7a9aba235428510f04313c16705f35aa815f01950425537095e2409b734f005af4e164b080ceea3",
+      "createdAt": "2026-10-24T12:46:23.169Z"
+    },
+    {
+      "id": "usr-vasavi-02",
+      "name": "Bhavya Sri",
+      "rollNumber": "21A81A0501",
+      "branch": "Computer Science & Engineering (CSE)",
+      "mobile": "9848022338",
+      "year": "4th Year",
+      "shareMobilePublicly": true,
+      "passwordHash": "93b2a7b58c1e4a677b70c1481a8a958c:6e438cdc877899eda2f376d0b97961852a7241c77846143ef9e4920b5feef9d08ef32c22a4d18a647efff35f4048a21d331eb5979a5bbeea917a286ea3b8bd58",
+      "createdAt": "2026-10-24T12:46:23.260Z"
+    },
+    {
+      "id": "usr-vasavi-03",
+      "name": "Kiran Teja",
+      "rollNumber": "25A81A0401",
+      "branch": "Electronics & Communication Engineering (ECE)",
+      "mobile": "9123456780",
+      "year": "1st Year",
+      "shareMobilePublicly": false,
+      "passwordHash": "fa3b9a52e9285e9b0e2a16135dad2554:44b0985fe17034f5bebb332b4a05ce2f1288c4260239304e9260833c0ff05d1c27bf6662fdedd04b0ef6bed4359c7681b426ba1963a4b4f1ab8443f4eb844638",
+      "createdAt": "2026-10-24T12:46:23.342Z"
+    },
+    {
+      "id": "usr-1793083693518-2784",
+      "name": "Aditya Varma",
+      "rollNumber": "25A81A0599",
+      "branch": "Computer Science & Engineering (CSE)",
+      "mobile": "9848012345",
+      "year": "1st Year",
+      "shareMobilePublicly": false,
+      "passwordHash": "431c8a166d2652aa25c6fd6adae5f417:e82d2c31d9f128838529c230cf68418a26fa056be71da739f7cc03c912b11291b3128f0b8c81a6c3d668d8ffeac5bccafd9100b3c83bfd6a471bbf641ad4bc4b",
+      "createdAt": "2026-10-27T06:48:13.565Z"
+    },
+    {
+      "id": "usr-1793085183994-3380",
+      "name": "Rohan Sharma",
+      "rollNumber": "25A81A0577",
+      "branch": "Computer Science & Engineering (CSE)",
+      "mobile": "9848123456",
+      "year": "3rd Year",
+      "shareMobilePublicly": true,
+      "passwordHash": "619e720ef7111c76d6e33a5fce1a9b48:d18576b1e86d6aec6a84aa6116ef76cc72c3ffbb8c7dfa3df2f95072cc97f634f29b0ec84f6d664a0f986d9ae13048bc96b38b16c0921bbd2af1537187ee216c",
+      "createdAt": "2026-10-27T07:13:04.061Z"
+    },
+    {
+      "id": "usr-1793085254979-6425",
+      "name": "Rohan Sharma",
+      "rollNumber": "25A81A0554",
+      "branch": "Computer Science & Engineering (CSE)",
+      "mobile": "9848123456",
+      "year": "3rd Year",
+      "shareMobilePublicly": true,
+      "passwordHash": "c4c1c116f3fb6195bcf08871bbceaa58:4a913bdc7efcf901fc0d0017f1cb07dd331cc186373fac362d084998027a38a00cafa204be41791a48311d603b0f655c37b9705ca41fdc8c780ef111596b3ca3",
+      "createdAt": "2026-10-27T07:14:15.051Z"
+    }
+  ],
+  "sessions": [
+    {
+      "token": "947d68e1c5a959649dfeeb079279981341c9e4c575d8c13c81f3230f0eb45cb2",
+      "userId": "usr-vasavi-01",
+      "createdAt": "2026-10-24T12:46:38.427Z"
+    },
+    {
+      "token": "fc2db3b6cd3abdc0366ba6765ee3a71b9cb5dc1b84f3cb4a5dd1e96ba66b3801",
+      "userId": "usr-vasavi-03",
+      "createdAt": "2026-10-24T12:46:51.101Z"
+    },
+    {
+      "token": "10d3e5ac41db14880feaa247c2f96a7bee3c1cab627d7a200e28536627f7ecdd",
+      "userId": "usr-vasavi-01",
+      "createdAt": "2026-10-24T13:08:33.027Z"
+    },
+    {
+      "token": "39e9b95e58150cd2e1f6cb4dd7d8ae60f21bf2ed47277be4f0dda339b5c9aa55",
+      "userId": "usr-vasavi-01",
+      "createdAt": "2026-10-27T06:23:24.413Z"
+    },
+    {
+      "token": "7d78cbef185ffdb203c3ab459f9300057c954f28d583164327ae26e68985f9e5",
+      "userId": "usr-vasavi-01",
+      "createdAt": "2026-10-27T06:41:02.035Z"
+    },
+    {
+      "token": "e516eaf49261658239e3471f0fa340a85736368d9a22b2ae25b243763ec539dd",
+      "userId": "usr-vasavi-01",
+      "createdAt": "2026-10-27T06:41:27.588Z"
+    },
+    {
+      "token": "19a2fc89fec56b400c0adf5888fa2d5b3e8e609ec85b2664c9b3e000b1463d95",
+      "userId": "usr-vasavi-01",
+      "createdAt": "2026-10-27T06:48:06.325Z"
+    },
+    {
+      "token": "2e91943a84c07d2d3a3c4045c61875134bcd4fd7b8a5f15cc419848b71502b07",
+      "userId": "usr-1793083693518-2784",
+      "createdAt": "2026-10-27T06:48:13.566Z"
+    },
+    {
+      "token": "c8339fed0d45f3562411b93988ccd6fbc9a38e480f2abdcbabaca379c52c0466",
+      "userId": "usr-1793085183994-3380",
+      "createdAt": "2026-10-27T07:13:04.061Z"
+    },
+    {
+      "token": "050248efd5112928af9998dfdf3d4a0673094765cafd6072d49a4bb2c5b78a14",
+      "userId": "usr-1793085183994-3380",
+      "createdAt": "2026-10-27T07:13:04.179Z"
+    },
+    {
+      "token": "a9519da20d8ab68aa6e5653b94b833d9226b1f5e9dd190c786c39918e8cfb9ce",
+      "userId": "usr-1793085254979-6425",
+      "createdAt": "2026-10-27T07:14:15.052Z"
+    },
+    {
+      "token": "3e6ebe3b95556fe2c3f3be6a5203009d4a5bb5eb2d2fe2c236dfbf35a4e039d7",
+      "userId": "usr-1793085254979-6425",
+      "createdAt": "2026-10-27T07:14:15.184Z"
+    },
+    {
+      "token": "8cbfc1c49cc5cc4db706e81b1128026b214e593ec2eea7929aba4d1be4ecb6f7",
+      "userId": "usr-1793085254979-6425",
+      "createdAt": "2026-10-27T07:14:15.432Z"
+    }
+  ],
+  "listings": [
+    {
+      "id": "c2c-1792846033254-135",
+      "name": "Arduino Nano V3 with Cable",
+      "category": "microcontrollers",
+      "categoryLabel": "Microcontrollers",
+      "transactionType": "rent",
+      "samplePrice": "₹25 / week (sample)",
+      "priceNumeric": 25,
+      "condition": "Gently Used (Tested OK)",
+      "sellerId": "usr-vasavi-01",
+      "sellerName": "Praveen Kumar",
+      "sellerRollNumber": "25A81A4300",
+      "sellerYear": "2nd Year",
+      "sellerDept": "Artificial Intelligence & Data Science (AI & DS)",
+      "sellerShareMobile": false,
+      "pickupLocation": "AI & DS Department Lobby",
+      "description": "Component tested and ready for campus peer handover.",
+      "specs": [],
+      "recommendedLabs": [],
+      "targetYears": [
+        "All Years"
+      ],
+      "isAvailable": true,
+      "dateListed": "Just now",
+      "iconType": "microcontroller",
+      "photoUrl": "/assets/images/arduino_nano_1793034898186.jpg",
+      "photoUrls": [
+        "/assets/images/arduino_nano_1793034898186.jpg"
+      ]
+    },
+    {
+      "id": "c2c-001",
+      "name": "Arduino Uno R3 Microcontroller Board (with USB A-B Cable)",
+      "category": "microcontrollers",
+      "categoryLabel": "Microcontrollers",
+      "transactionType": "rent",
+      "samplePrice": "₹40 / week (sample)",
+      "priceNumeric": 40,
+      "condition": "Gently Used (Tested OK)",
+      "sellerName": "Vikramaditya S.",
+      "sellerRollNumber": "22A81A0412",
+      "sellerYear": "3rd Year",
+      "sellerDept": "Electronics & Communication Engineering (ECE)",
+      "sellerShareMobile": false,
+      "pickupLocation": "ECE Department Block, 2nd Floor Corridor",
+      "description": "ATmega328P microcontroller board with CH340 chip. Tested with Arduino IDE 2.3. Includes a 30cm blue USB cable. Perfect for 2nd/3rd year microcontrollers & embedded systems lab assignments.",
+      "specs": [
+        "ATmega328P @ 16 MHz",
+        "14 Digital I/O Pins (6 PWM)",
+        "6 Analog Inputs",
+        "Operating Voltage: 5V",
+        "Tested Blink sketch"
+      ],
+      "recommendedLabs": [
+        "Basic Electrical Lab (1st Yr)",
+        "Microprocessor & Microcontroller Lab (2nd/3rd Yr)",
+        "Mini Projects"
+      ],
+      "targetYears": [
+        "1st Year",
+        "2nd Year",
+        "3rd Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "2 days ago",
+      "iconType": "microcontroller"
+    },
+    {
+      "id": "c2c-002",
+      "name": "Solderless Breadboard (830 Tie Points) + Power Rails",
+      "category": "prototyping",
+      "categoryLabel": "Prototyping & Lab Tools",
+      "transactionType": "donate",
+      "samplePrice": "Free (Donation)",
+      "priceNumeric": 0,
+      "condition": "Like New (1 Lab Session)",
+      "sellerName": "Sneha Patel",
+      "sellerRollNumber": "21A81A0234",
+      "sellerYear": "4th Year",
+      "sellerDept": "Electrical & Electronics Engineering (EEE)",
+      "sellerShareMobile": false,
+      "pickupLocation": "Central Library Ground Floor Study Hall",
+      "description": "Donating to any junior in need for 1st or 2nd year labs! Standard MB-102 breadboard with sticky foam backing and clear red/blue power bus markings. Clips are firm, zero burnt holes.",
+      "specs": [
+        "830 Total Contact Points",
+        "Dual Positive/Negative Distribution Strips",
+        "Fits standard 0.1\" pitch DIP ICs",
+        "High elasticity nickel-plated contacts"
+      ],
+      "recommendedLabs": [
+        "Basic Electrical & Electronics Lab (1st Yr)",
+        "Analog Electronics Lab (2nd Yr)",
+        "Logic Design Lab"
+      ],
+      "targetYears": [
+        "1st Year",
+        "2nd Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "Yesterday",
+      "iconType": "breadboard"
+    },
+    {
+      "id": "c2c-003",
+      "name": "Assorted Resistors (1/4W Metal Film, 300 Pcs Box, 10Ω - 1MΩ)",
+      "category": "passives",
+      "categoryLabel": "Passive Components",
+      "transactionType": "sell",
+      "samplePrice": "₹95 (sample example)",
+      "priceNumeric": 95,
+      "condition": "Brand New / Sealed",
+      "sellerName": "Harish Nair",
+      "sellerRollNumber": "21A81A0315",
+      "sellerYear": "4th Year",
+      "sellerDept": "Mechanical Engineering (MECH)",
+      "sellerShareMobile": false,
+      "pickupLocation": "Student Activity Center (SAC) Canteen",
+      "description": "Bought a mega pack for our final year automated sorting capstone. Selling our leftover sealed compartments: 30 popular values including 220Ω, 330Ω, 1kΩ, 4.7kΩ, 10kΩ, 100kΩ.",
+      "specs": [
+        "30 Values × 10 pcs each",
+        "±1% Tolerance Metal Film",
+        "Pre-sorted in labeled paper strips",
+        "0.25 Watt rating"
+      ],
+      "recommendedLabs": [
+        "All BTech Lab Courses",
+        "Circuits & Networks Lab",
+        "Sensors Interfacing"
+      ],
+      "targetYears": [
+        "1st Year",
+        "2nd Year",
+        "3rd Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "3 days ago",
+      "iconType": "passive"
+    },
+    {
+      "id": "c2c-004",
+      "name": "Dupont Jumper Wires 120-Piece Multi-Ribbon Pack (M-M, M-F, F-F)",
+      "category": "prototyping",
+      "categoryLabel": "Prototyping & Lab Tools",
+      "transactionType": "sell",
+      "samplePrice": "₹120 (sample example)",
+      "priceNumeric": 120,
+      "condition": "Like New (1 Lab Session)",
+      "sellerName": "Rhea Sen",
+      "sellerRollNumber": "21A81A0589",
+      "sellerYear": "4th Year",
+      "sellerDept": "Computer Science & Engineering (CSE)",
+      "sellerShareMobile": false,
+      "pickupLocation": "CS Computing Lab 3 Entry",
+      "description": "Complete set of 40x Male-to-Male, 40x Male-to-Female, and 40x Female-to-Female 20cm flexible copper jumpers. Essential for connecting sensor modules to microcontrollers.",
+      "specs": [
+        "20cm (8-inch) length",
+        "Standard 2.54mm pin spacing",
+        "10 distinct wire colors for easy tracing",
+        "Stranded copper core"
+      ],
+      "recommendedLabs": [
+        "BEE Lab",
+        "Microcontroller Lab",
+        "IoT & Embedded Projects"
+      ],
+      "targetYears": [
+        "1st Year",
+        "2nd Year",
+        "3rd Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "4 days ago",
+      "iconType": "wires"
+    },
+    {
+      "id": "c2c-005",
+      "name": "HC-SR04 Ultrasonic Distance Sensor + Mounting Bracket",
+      "category": "sensors",
+      "categoryLabel": "Sensors & Modules",
+      "transactionType": "rent",
+      "samplePrice": "₹25 / week (sample)",
+      "priceNumeric": 25,
+      "condition": "Gently Used (Tested OK)",
+      "sellerName": "Karthik Raja",
+      "sellerRollNumber": "22A81A0456",
+      "sellerYear": "3rd Year",
+      "sellerDept": "Electronics & Communication Engineering (ECE)",
+      "sellerShareMobile": false,
+      "pickupLocation": "Robotics Innovation Cell / Workshop 4",
+      "description": "Non-contact ultrasonic ranging module with 2cm to 400cm detection distance. Pin-tested on 5V VCC, GND, Trigger, and Echo pins. Ideal for obstacle-avoiding car or proximity labs.",
+      "specs": [
+        "Operating Voltage: 5V DC",
+        "Ranging: 2cm - 400cm",
+        "Measuring Angle: 15°",
+        "Trigger Signal: 10µs TTL pulse"
+      ],
+      "recommendedLabs": [
+        "Sensors & Transducers Lab (2nd Yr)",
+        "Robotics Lab",
+        "Autonomous Systems Mini Project"
+      ],
+      "targetYears": [
+        "2nd Year",
+        "3rd Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "5 days ago",
+      "iconType": "sensor"
+    },
+    {
+      "id": "c2c-006",
+      "name": "Electrolytic & Ceramic Capacitor Lab Starter Pack (80 Pcs)",
+      "category": "passives",
+      "categoryLabel": "Passive Components",
+      "transactionType": "donate",
+      "samplePrice": "Free (Donation)",
+      "priceNumeric": 0,
+      "condition": "Functional Spares",
+      "sellerName": "Aman Verma",
+      "sellerRollNumber": "21A81A0208",
+      "sellerYear": "4th Year",
+      "sellerDept": "Electrical & Electronics Engineering (EEE)",
+      "sellerShareMobile": false,
+      "pickupLocation": "EEE Power Systems Lab Lobby",
+      "description": "Clearing out components from our power electronics project. Contains 10µF, 47µF, 100µF, 220µF, 470µF 25V electrolytics plus 100nF (0.1µF 104) ceramic decoupling caps.",
+      "specs": [
+        "Working Voltage: 16V to 50V",
+        "Includes 0.1µF ceramic decoupling caps",
+        "Radial lead design for breadboards",
+        "Discharged & sorted safely"
+      ],
+      "recommendedLabs": [
+        "Analog Circuits Lab",
+        "Power Electronics Lab",
+        "Filter Design Experiments"
+      ],
+      "targetYears": [
+        "2nd Year",
+        "3rd Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "1 day ago",
+      "iconType": "passive"
+    },
+    {
+      "id": "c2c-007",
+      "name": "ESP32 Dual-Core Wi-Fi & Bluetooth Development Board (NodeMCU-32S)",
+      "category": "microcontrollers",
+      "categoryLabel": "Microcontrollers",
+      "transactionType": "sell",
+      "samplePrice": "₹340 (sample example)",
+      "priceNumeric": 340,
+      "condition": "Like New (1 Lab Session)",
+      "sellerName": "Divya Krishnan",
+      "sellerRollNumber": "21A81A1204",
+      "sellerYear": "4th Year",
+      "sellerDept": "Information Technology (IT)",
+      "sellerShareMobile": false,
+      "pickupLocation": "Tech Park Cafe / Ground Floor",
+      "description": "Genuine NodeMCU-32S with ESP-WROOM-32 chip. Both 2.4 GHz Wi-Fi and BLE working perfectly. Used once for our 7th semester cloud IoT project. Micro-USB interface.",
+      "specs": [
+        "Xtensa Dual-Core 32-bit LX6 @ 240MHz",
+        "Built-in 802.11 b/g/n Wi-Fi & BLE 4.2",
+        "520 KB SRAM / 4MB Flash",
+        "Capacitive touch & Hall sensor"
+      ],
+      "recommendedLabs": [
+        "IoT Systems & Cloud Computing Lab (3rd Yr)",
+        "Cyber Physical Systems",
+        "Capstone Phase 1"
+      ],
+      "targetYears": [
+        "3rd Year",
+        "4th Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "3 days ago",
+      "iconType": "microcontroller"
+    },
+    {
+      "id": "c2c-008",
+      "name": "Digital Multimeter DT-830D with Needle Probes & Tested 9V Battery",
+      "category": "prototyping",
+      "categoryLabel": "Prototyping & Lab Tools",
+      "transactionType": "rent",
+      "samplePrice": "₹35 / week (sample)",
+      "priceNumeric": 35,
+      "condition": "Gently Used (Tested OK)",
+      "sellerName": "Mohd. Farhan",
+      "sellerRollNumber": "22A81A0423",
+      "sellerYear": "3rd Year",
+      "sellerDept": "Electronics & Communication Engineering (ECE)",
+      "sellerShareMobile": false,
+      "pickupLocation": "Instrumentation Block Lab 102",
+      "description": "Compact pocket multimeter for measuring DC/AC voltage, DC current, resistance, continuity buzzer, and transistor hFE. Rent it for your mid-sem lab exam prep so you do not have to buy one.",
+      "specs": [
+        "DC Voltage: 200mV to 1000V",
+        "Continuity test with audible buzzer",
+        "Resistance: 200Ω to 2000kΩ",
+        "Includes red/black probe leads & fresh 9V"
+      ],
+      "recommendedLabs": [
+        "BEE Lab (1st Yr)",
+        "Circuit Theory Lab",
+        "Electronics Workshop Practical"
+      ],
+      "targetYears": [
+        "1st Year",
+        "2nd Year",
+        "3rd Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "Today",
+      "iconType": "multimeter"
+    },
+    {
+      "id": "c2c-009",
+      "name": "L298N Dual H-Bridge Motor Driver Module (with 5V Onboard Regulator)",
+      "category": "power_motors",
+      "categoryLabel": "Power & Motors",
+      "transactionType": "rent",
+      "samplePrice": "₹30 / week (sample)",
+      "priceNumeric": 30,
+      "condition": "Gently Used (Tested OK)",
+      "sellerName": "Tanvi Joshi",
+      "sellerRollNumber": "22A81A0322",
+      "sellerYear": "3rd Year",
+      "sellerDept": "Mechanical Engineering (MECH)",
+      "sellerShareMobile": false,
+      "pickupLocation": "Mechatronics Lab 204",
+      "description": "Heavy duty motor driver capable of driving two DC motors or one 4-wire two-phase stepper motor up to 2A per bridge. Large aluminum heat sink already installed.",
+      "specs": [
+        "Driver Chip: ST L298N",
+        "Logical Voltage: 5V",
+        "Drive Voltage: 5V - 35V",
+        "Peak Current: 2A per bridge"
+      ],
+      "recommendedLabs": [
+        "Microcontroller Lab",
+        "Robotics Mini Project (3rd Yr)",
+        "Mechatronics Systems"
+      ],
+      "targetYears": [
+        "2nd Year",
+        "3rd Year",
+        "4th Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "4 days ago",
+      "iconType": "motor"
+    },
+    {
+      "id": "c2c-010",
+      "name": "16x2 Character LCD Module with Pre-Soldered I2C Serial Backpack",
+      "category": "sensors",
+      "categoryLabel": "Sensors & Modules",
+      "transactionType": "donate",
+      "samplePrice": "Free (Donation)",
+      "priceNumeric": 0,
+      "condition": "Gently Used (Tested OK)",
+      "sellerName": "Ananya Deshmukh",
+      "sellerRollNumber": "21A81A0567",
+      "sellerYear": "4th Year",
+      "sellerDept": "Computer Science & Engineering (CSE)",
+      "sellerShareMobile": false,
+      "pickupLocation": "Campus Amphitheatre / Main Lawn",
+      "description": "Giving away to any 2nd year student starting their embedded display lab. I2C adapter saves all your microcontroller pins (needs only SDA and SCL). Blue backlight with contrast trimpot.",
+      "specs": [
+        "Display: 16 characters × 2 lines",
+        "I2C Address: 0x27 or 0x3F",
+        "Requires only 4 wires (VCC, GND, SDA, SCL)",
+        "5V operating voltage"
+      ],
+      "recommendedLabs": [
+        "Embedded Systems Lab (2nd/3rd Yr)",
+        "Microcontrollers Lab",
+        "Smart Metering Mini Projects"
+      ],
+      "targetYears": [
+        "2nd Year",
+        "3rd Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "Yesterday",
+      "iconType": "display"
+    },
+    {
+      "id": "c2c-011",
+      "name": "Raspberry Pi Pico RP2040 Board (Header Pins Pre-Soldered)",
+      "category": "microcontrollers",
+      "categoryLabel": "Microcontrollers",
+      "transactionType": "sell",
+      "samplePrice": "₹290 (sample example)",
+      "priceNumeric": 290,
+      "condition": "Like New (1 Lab Session)",
+      "sellerName": "Nitin Bharadwaj",
+      "sellerRollNumber": "21A81A0490",
+      "sellerYear": "4th Year",
+      "sellerDept": "Electronics & Communication Engineering (ECE)",
+      "sellerShareMobile": false,
+      "pickupLocation": "Advanced Embedded Systems Lab Room 310",
+      "description": "Original Raspberry Pi Pico with dual ARM Cortex-M0+ cores. Pins professionally soldered with clean flux removal so you can plug it straight into breadboards. Flashed with MicroPython firmware.",
+      "specs": [
+        "RP2040 Dual ARM Cortex-M0+ @ 133MHz",
+        "264KB on-chip SRAM / 2MB QSPI Flash",
+        "26 multi-function GPIO pins",
+        "MicroPython & C/C++ SDK compatible"
+      ],
+      "recommendedLabs": [
+        "Advanced Microprocessors Lab",
+        "IoT Design Lab",
+        "Signal Processing Mini Project"
+      ],
+      "targetYears": [
+        "2nd Year",
+        "3rd Year",
+        "4th Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "3 days ago",
+      "iconType": "microcontroller"
+    },
+    {
+      "id": "c2c-012",
+      "name": "DHT11 Temperature & Relative Humidity Sensor Module (3-Pin PCB)",
+      "category": "sensors",
+      "categoryLabel": "Sensors & Modules",
+      "transactionType": "rent",
+      "samplePrice": "₹20 / week (sample)",
+      "priceNumeric": 20,
+      "condition": "Gently Used (Tested OK)",
+      "sellerName": "Shreya Kapoor",
+      "sellerRollNumber": "23A81A4312",
+      "sellerYear": "2nd Year",
+      "sellerDept": "Artificial Intelligence & Data Science (AI & DS)",
+      "sellerShareMobile": false,
+      "pickupLocation": "Department of AI & DS, Room 204",
+      "description": "Calibrated digital output temperature and humidity sensor module with onboard pull-up resistor and power indicator LED. Used for a campus weather station lab demo.",
+      "specs": [
+        "Humidity Range: 20-90% RH (±5% accuracy)",
+        "Temperature Range: 0-50°C (±2°C accuracy)",
+        "Sampling Rate: 1 Hz (once per second)",
+        "3-pin header: VCC, DATA, GND"
+      ],
+      "recommendedLabs": [
+        "Weather Monitoring Projects",
+        "Sensors Interfacing Lab",
+        "1st & 2nd Year Sem Projects"
+      ],
+      "targetYears": [
+        "1st Year",
+        "2nd Year",
+        "3rd Year"
+      ],
+      "isAvailable": true,
+      "dateListed": "6 days ago",
+      "iconType": "sensor"
+    }
+  ],
+  "requests": [],
+  "branches": [
+    "Artificial Intelligence & Data Science (AI & DS)",
+    "Artificial Intelligence & Machine Learning (AI & ML)",
+    "Computer Science & Engineering (CSE)",
+    "Computer Science & Technology (CST)",
+    "Electronics & Communication Engineering (ECE)",
+    "Electrical & Electronics Engineering (EEE)",
+    "Information Technology (IT)",
+    "Mechanical Engineering (MECH)",
+    "Civil Engineering (CIVIL)"
+  ],
+  "conversations": [
+    {
+      "id": "conv-1792847348228-492",
+      "listingId": "c2c-001",
+      "listingTitle": "Arduino Uno R3 Microcontroller Board (with USB A-B Cable)",
+      "listingPrice": "₹40 / week (sample)",
+      "listingTransactionType": "rent",
+      "listingCategory": "Microcontrollers",
+      "listingIconType": "microcontroller",
+      "sellerId": "seller-22A81A0412",
+      "sellerName": "Vikramaditya S.",
+      "sellerRollNumber": "22A81A0412",
+      "sellerBranch": "Electronics & Communication Engineering (ECE)",
+      "buyerId": "usr-vasavi-01",
+      "buyerName": "Praveen Kumar",
+      "buyerRollNumber": "25A81A4300",
+      "buyerBranch": "Artificial Intelligence & Data Science (AI & DS)",
+      "buyerYear": "2nd Year",
+      "lastMessageText": "Shared verified mobile number for campus handover: +91 9876543210",
+      "lastMessageAt": "2026-10-24T13:09:20.692Z",
+      "isBlocked": false,
+      "reportCount": 1,
+      "createdAt": "2026-10-24T13:09:08.228Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg-1792847348228-249",
+      "conversationId": "conv-1792847348228-492",
+      "senderId": "usr-vasavi-01",
+      "senderName": "Praveen Kumar",
+      "senderRollNumber": "25A81A4300",
+      "text": "Hi Vikramaditya, is this Arduino Uno R3 board available for rent tomorrow?",
+      "type": "text",
+      "createdAt": "2026-10-24T13:09:08.228Z",
+      "readBy": [
+        "usr-vasavi-01"
+      ]
+    },
+    {
+      "id": "msg-1792847356111-481",
+      "conversationId": "conv-1792847348228-492",
+      "senderId": "usr-vasavi-01",
+      "senderName": "Praveen Kumar",
+      "senderRollNumber": "25A81A4300",
+      "text": "Can we meet near ECE Department Block around 1:30 PM?",
+      "type": "text",
+      "createdAt": "2026-10-24T13:09:16.111Z",
+      "readBy": [
+        "usr-vasavi-01"
+      ]
+    },
+    {
+      "id": "msg-1792847360692-690",
+      "conversationId": "conv-1792847348228-492",
+      "senderId": "usr-vasavi-01",
+      "senderName": "Praveen Kumar",
+      "senderRollNumber": "25A81A4300",
+      "text": "Shared verified mobile number for campus handover: +91 9876543210",
+      "type": "phone_share",
+      "sharedPhone": "9876543210",
+      "createdAt": "2026-10-24T13:09:20.692Z",
+      "readBy": [
+        "usr-vasavi-01"
+      ]
+    }
+  ],
+  "reports": [
+    {
+      "id": "rep-1792847369730-282",
+      "reporterId": "usr-vasavi-01",
+      "reporterRoll": "25A81A4300",
+      "conversationId": "conv-1792847348228-492",
+      "reason": "Testing student report feature for campus safety",
+      "createdAt": "2026-10-24T13:09:29.730Z"
+    }
+  ]
+}

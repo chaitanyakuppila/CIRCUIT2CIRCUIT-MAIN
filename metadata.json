@@ -1,0 +1,6 @@
+{
+  "name": "Circuit2Circuit - BTech Electronics Exchange",
+  "description": "Student-to-student electronics exchange for BTech engineering students to rent, donate, sell, and build lab projects.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
