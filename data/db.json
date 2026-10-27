@@ -200,7 +200,8 @@
       ],
       "isAvailable": true,
       "dateListed": "2 days ago",
-      "iconType": "microcontroller"
+      "iconType": "microcontroller",
+      "photoUrl": "/assets/images/arduino_uno_1792860916720.jpg"
     },
     {
       "id": "c2c-002",
@@ -235,7 +236,8 @@
       ],
       "isAvailable": true,
       "dateListed": "Yesterday",
-      "iconType": "breadboard"
+      "iconType": "breadboard",
+      "photoUrl": "/assets/images/solderless_breadboard_1793035175411.jpg"
     },
     {
       "id": "c2c-003",
@@ -271,7 +273,8 @@
       ],
       "isAvailable": true,
       "dateListed": "3 days ago",
-      "iconType": "passive"
+      "iconType": "passive",
+      "photoUrl": "/assets/images/resistor_assortment_1793035150193.jpg"
     },
     {
       "id": "c2c-004",
@@ -307,7 +310,8 @@
       ],
       "isAvailable": true,
       "dateListed": "4 days ago",
-      "iconType": "wires"
+      "iconType": "wires",
+      "photoUrl": "/assets/images/jumper_wires_1793035149920.jpg"
     },
     {
       "id": "c2c-005",
@@ -342,7 +346,8 @@
       ],
       "isAvailable": true,
       "dateListed": "5 days ago",
-      "iconType": "sensor"
+      "iconType": "sensor",
+      "photoUrl": "/assets/images/ultrasonic_sensor_1792860917671.jpg"
     },
     {
       "id": "c2c-006",
@@ -377,7 +382,8 @@
       ],
       "isAvailable": true,
       "dateListed": "1 day ago",
-      "iconType": "passive"
+      "iconType": "passive",
+      "photoUrl": "/assets/images/capacitors_pack_1793035151474.jpg"
     },
     {
       "id": "c2c-007",
@@ -412,7 +418,8 @@
       ],
       "isAvailable": true,
       "dateListed": "3 days ago",
-      "iconType": "microcontroller"
+      "iconType": "microcontroller",
+      "photoUrl": "/assets/images/esp32_devkit_1792860917627.jpg"
     },
     {
       "id": "c2c-008",
@@ -448,7 +455,8 @@
       ],
       "isAvailable": true,
       "dateListed": "Today",
-      "iconType": "multimeter"
+      "iconType": "multimeter",
+      "photoUrl": "/assets/images/multimeter_dt830d_1793035151171.jpg"
     },
     {
       "id": "c2c-009",
@@ -591,7 +599,8 @@
       ],
       "isAvailable": true,
       "dateListed": "6 days ago",
-      "iconType": "sensor"
+      "iconType": "sensor",
+      "photoUrl": "/assets/images/dht11_sensor_1792860918160.jpg"
     }
   ],
   "requests": [],

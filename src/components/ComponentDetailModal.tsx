@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ComponentItem, StudentUser } from '../types';
 import { X, MapPin, User, CheckCircle2, ShieldCheck, Send, Phone, Lock, AlertCircle, Info, MessageSquare } from 'lucide-react';
 import { HardwareVisual } from './HardwareVisual';
-import { api } from '../services/api';
+import { api, resolveImageUrl } from '../services/api';
 import { validateRequestPermissions } from '../utils/validation';
 
 interface ComponentDetailModalProps {
@@ -135,7 +135,7 @@ export const ComponentDetailModal: React.FC<ComponentDetailModalProps> = ({
               {item.photoUrls.map((url, idx) => (
                 <img
                   key={idx}
-                  src={url}
+                  src={resolveImageUrl(url) || url}
                   alt={`${item.name} view ${idx + 1}`}
                   loading="lazy"
                   decoding="async"

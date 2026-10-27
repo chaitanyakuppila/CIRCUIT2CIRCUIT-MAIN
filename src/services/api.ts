@@ -45,11 +45,15 @@ export function resolveImageUrl(url?: string): string | undefined {
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
     return url;
   }
-  if (API_BASE_URL && url.startsWith('/uploads/')) {
-    const base = API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL;
-    return `${base}${url}`;
+  let normalizedUrl = url;
+  if (normalizedUrl.startsWith('/src/assets/images/')) {
+    normalizedUrl = normalizedUrl.replace('/src/assets/images/', '/assets/images/');
   }
-  return url;
+  if (API_BASE_URL && normalizedUrl.startsWith('/uploads/')) {
+    const base = API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL;
+    return `${base}${normalizedUrl}`;
+  }
+  return normalizedUrl;
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

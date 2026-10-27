@@ -401,21 +401,34 @@ function sanitizeListing(listing: ComponentItem, currentUserId?: string): Compon
   if (photoUrl && photoUrl.startsWith('/src/assets/images/')) {
     photoUrl = photoUrl.replace('/src/assets/images/', '/assets/images/');
   }
-  if (!photoUrl) {
-    if (listing.id === 'c2c-001') photoUrl = '/assets/images/arduino_uno_1792860916720.jpg';
-    if (listing.id === 'c2c-002') photoUrl = '/assets/images/solderless_breadboard_1793035175411.jpg';
-    if (listing.id === 'c2c-003') photoUrl = '/assets/images/resistor_assortment_1793035150193.jpg';
-    if (listing.id === 'c2c-004') photoUrl = '/assets/images/jumper_wires_1793035149920.jpg';
-    if (listing.id === 'c2c-005') photoUrl = '/assets/images/ultrasonic_sensor_1792860917671.jpg';
-    if (listing.id === 'c2c-006') photoUrl = '/assets/images/capacitors_pack_1793035151474.jpg';
-    if (listing.id === 'c2c-007') photoUrl = '/assets/images/esp32_devkit_1792860917627.jpg';
-    if (listing.id === 'c2c-008') photoUrl = '/assets/images/multimeter_dt830d_1793035151171.jpg';
-    if (listing.id === 'c2c-009') photoUrl = '/assets/images/pir_sensor_1792860918387.jpg';
-    if (listing.id === 'c2c-010') photoUrl = '/assets/images/soil_moisture_sensor_1792860929432.jpg';
-    if (listing.id === 'c2c-011') photoUrl = '/assets/images/ir_sensor_1792860930042.jpg';
-    if (listing.id === 'c2c-012') photoUrl = '/assets/images/dht11_sensor_1792860918160.jpg';
-    if (listing.id === 'c2c-1792846033254-135' || (listing.name && listing.name.toLowerCase().includes('nano'))) {
+  if (!photoUrl && listing.name) {
+    const lower = listing.name.toLowerCase();
+    if (lower.includes('nano')) {
       photoUrl = '/assets/images/arduino_nano_1793034898186.jpg';
+    } else if (lower.includes('uno')) {
+      photoUrl = '/assets/images/arduino_uno_1792860916720.jpg';
+    } else if (lower.includes('breadboard')) {
+      photoUrl = '/assets/images/solderless_breadboard_1793035175411.jpg';
+    } else if (lower.includes('resistor')) {
+      photoUrl = '/assets/images/resistor_assortment_1793035150193.jpg';
+    } else if (lower.includes('jumper wire') || lower.includes('dupont')) {
+      photoUrl = '/assets/images/jumper_wires_1793035149920.jpg';
+    } else if (lower.includes('ultrasonic') || lower.includes('hc-sr04')) {
+      photoUrl = '/assets/images/ultrasonic_sensor_1792860917671.jpg';
+    } else if (lower.includes('capacitor')) {
+      photoUrl = '/assets/images/capacitors_pack_1793035151474.jpg';
+    } else if (lower.includes('esp32')) {
+      photoUrl = '/assets/images/esp32_devkit_1792860917627.jpg';
+    } else if (lower.includes('multimeter')) {
+      photoUrl = '/assets/images/multimeter_dt830d_1793035151171.jpg';
+    } else if (lower.includes('pir') || lower.includes('hc-sr501') || lower.includes('motion sensor')) {
+      photoUrl = '/assets/images/pir_sensor_1792860918387.jpg';
+    } else if (lower.includes('soil moisture')) {
+      photoUrl = '/assets/images/soil_moisture_sensor_1792860929432.jpg';
+    } else if (lower.includes('obstacle') || lower.includes('ir sensor')) {
+      photoUrl = '/assets/images/ir_sensor_1792860930042.jpg';
+    } else if (lower.includes('dht11') || lower.includes('temperature & relative humidity') || lower.includes('temperature and humidity')) {
+      photoUrl = '/assets/images/dht11_sensor_1792860918160.jpg';
     }
   }
 
@@ -1458,8 +1471,12 @@ export async function startServer(serverApp: express.Application = app) {
     });
   } else {
     const { createServer: createViteServer } = await import('vite');
+    const isHmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: isHmrDisabled ? false : undefined,
+      },
       appType: 'spa',
     });
     serverApp.use(vite.middlewares);
