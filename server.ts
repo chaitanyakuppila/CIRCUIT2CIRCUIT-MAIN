@@ -180,7 +180,15 @@ function loadDatabase(): DatabaseSchema {
       if (!data.messages) data.messages = [];
       if (!data.reports) data.reports = [];
       if (!data.requests) data.requests = [];
-      if (!data.branches) data.branches = DEFAULT_BRANCHES;
+      if (!data.branches) {
+        data.branches = DEFAULT_BRANCHES;
+      } else {
+        DEFAULT_BRANCHES.forEach((b) => {
+          if (!data.branches.includes(b)) {
+            data.branches.push(b);
+          }
+        });
+      }
       return data;
     } catch (e) {
       console.error('Failed to parse database, reinitializing...', e);

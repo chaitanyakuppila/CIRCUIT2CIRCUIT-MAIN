@@ -163,7 +163,7 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({ item, onSelect, on
         <div className="grid grid-cols-2 gap-2.5 pt-1">
           <button
             onClick={() => onSelect(item)}
-            className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-slate-200 hover:text-white bg-slate-950/80 hover:bg-slate-800 active:bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl transition-all cursor-pointer min-h-[40px]"
+            className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold text-slate-200 hover:text-white bg-slate-950/80 hover:bg-slate-800 active:bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl transition-all cursor-pointer min-h-[44px]"
           >
             <span>Specs & Labs</span>
             <ArrowUpRight className="w-3.5 h-3.5 text-slate-400" />
@@ -171,7 +171,7 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({ item, onSelect, on
 
           <button
             onClick={() => onStartChat ? onStartChat(item) : onSelect(item)}
-            className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 rounded-xl shadow-md transition-all cursor-pointer min-h-[40px]"
+            className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 rounded-xl shadow-md transition-all cursor-pointer min-h-[44px]"
           >
             <MessageSquare className="w-3.5 h-3.5 text-slate-950" />
             <span>Chat Seller</span>

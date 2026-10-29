@@ -1,6 +1,25 @@
 {
-  "users": [],
-  "sessions": [],
+  "users": [
+    {
+      "id": "usr-1793272371190-808",
+      "name": "CAI Student",
+      "rollNumber": "25A81A4388",
+      "branch": "Computer Science and Artificial Intelligence (CAI)",
+      "mobile": "9876543210",
+      "year": "2nd Year",
+      "shareMobilePublicly": false,
+      "passwordHash": "c7bf959069018bde4375006d4836c274:caef637b7ed914614b1d19644378a784d7d45c3c8eddff089c16fc06b390d2871b7e180c449d7743095f5ea2e6fa2b9ff7d817aba229ae324be5fc8396183a9c",
+      "createdAt": "2026-10-29T11:12:51.252Z",
+      "rollNumberUpper": "25A81A4388"
+    }
+  ],
+  "sessions": [
+    {
+      "token": "c2c_eyJ1c2VySWQiOiJ1c3ItMTc5MzI3MjM3MTE5MC04MDgiLCJyb2xsTnVtYmVyIjoiMjVBODFBNDM4OCIsIm5hbWUiOiJDQUkgU3R1ZGVudCIsImJyYW5jaCI6IkNvbXB1dGVyIFNjaWVuY2UgYW5kIEFydGlmaWNpYWwgSW50ZWxsaWdlbmNlIChDQUkpIiwieWVhciI6IjJuZCBZZWFyIiwiZXhwIjoxNzk1ODY0MzcxNzQxfQ.5oj2ttyuC1tXg6oi_1RzZrJv9E9T9UUkkEjS2DlgAkU",
+      "userId": "usr-1793272371190-808",
+      "createdAt": "2026-10-29T11:12:51.741Z"
+    }
+  ],
   "listings": [
     {
       "id": "c2c-1792846033254-135",
@@ -479,6 +498,7 @@
     "Artificial Intelligence & Machine Learning (AI & ML)",
     "Computer Science & Engineering (CSE)",
     "Computer Science & Technology (CST)",
+    "Computer Science and Artificial Intelligence (CAI)",
     "Electronics & Communication Engineering (ECE)",
     "Electrical & Electronics Engineering (EEE)",
     "Information Technology (IT)",

@@ -11,6 +11,7 @@ export const DEFAULT_BRANCHES = [
   'Artificial Intelligence & Machine Learning (AI & ML)',
   'Computer Science & Engineering (CSE)',
   'Computer Science & Technology (CST)',
+  'Computer Science and Artificial Intelligence (CAI)',
   'Electronics & Communication Engineering (ECE)',
   'Electrical & Electronics Engineering (EEE)',
   'Information Technology (IT)',
