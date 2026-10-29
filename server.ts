@@ -451,6 +451,12 @@ async function ensurePgSchema(): Promise<boolean> {
         user_id VARCHAR(64) NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS c2c_listings (
+        id VARCHAR(64) PRIMARY KEY,
+        data JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
     `);
 
     // Seed default users if empty
