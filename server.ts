@@ -4,6 +4,18 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { initializeApp as initFirebaseApp, getApps as getFirebaseApps } from 'firebase/app';
+import {
+  getFirestore,
+  doc as fsDoc,
+  getDoc as fsGetDoc,
+  setDoc as fsSetDoc,
+  getDocs as fsGetDocs,
+  collection as fsCollection,
+  query as fsQuery,
+  where as fsWhere,
+  deleteDoc as fsDeleteDoc,
+} from 'firebase/firestore';
 import {
   DEFAULT_BRANCHES,
   validateVasaviRollNumber,
@@ -186,42 +198,8 @@ function loadDatabase(): DatabaseSchema {
     }
   }
 
-  // Initial seed with sample accounts & initial inventory
-  const defaultUsers: StoredUser[] = [
-    {
-      id: 'usr-vasavi-01',
-      name: 'Praveen Kumar',
-      rollNumber: '25A81A4300', // Matches sample from prompt
-      branch: 'Artificial Intelligence & Data Science (AI & DS)',
-      mobile: '9876543210',
-      year: '2nd Year',
-      shareMobilePublicly: false,
-      passwordHash: hashPassword('Password123'),
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'usr-vasavi-02',
-      name: 'Bhavya Sri',
-      rollNumber: '21A81A0501',
-      branch: 'Computer Science & Engineering (CSE)',
-      mobile: '9848022338',
-      year: '4th Year',
-      shareMobilePublicly: true,
-      passwordHash: hashPassword('Password123'),
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'usr-vasavi-03',
-      name: 'Kiran Teja',
-      rollNumber: '25A81A0401',
-      branch: 'Electronics & Communication Engineering (ECE)',
-      mobile: '9123456780',
-      year: '1st Year',
-      shareMobilePublicly: false,
-      passwordHash: hashPassword('Password123'),
-      createdAt: new Date().toISOString(),
-    },
-  ];
+  // Clean initial accounts setup (all student accounts created via registration)
+  const defaultUsers: StoredUser[] = [];
 
   const demoConvId = 'conv-demo-01';
   const initialConversations: Conversation[] = [
@@ -404,6 +382,33 @@ export function verifySignedSessionToken(token: string): SignedSessionPayload | 
   }
 }
 
+// --- Firebase Firestore Initialization ---
+let firebaseConfig: any = null;
+try {
+  const configPath = path.join(__dirname, 'firebase-applet-config.json');
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  } else {
+    const rootConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(rootConfigPath)) {
+      firebaseConfig = JSON.parse(fs.readFileSync(rootConfigPath, 'utf-8'));
+    }
+  }
+} catch (e) {
+  console.warn('Could not load firebase-applet-config.json:', e);
+}
+
+let firestoreDb: any = null;
+if (firebaseConfig && firebaseConfig.projectId) {
+  try {
+    const firebaseApp = getFirebaseApps().length === 0 ? initFirebaseApp(firebaseConfig) : getFirebaseApps()[0];
+    firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+    console.log('Firebase Firestore initialized successfully:', firebaseConfig.projectId);
+  } catch (err) {
+    console.error('Failed to initialize Firestore:', err);
+  }
+}
+
 // PostgreSQL Connection Pool Setup
 const PG_CONN_STRING =
   process.env.POSTGRES_URL ||
@@ -490,6 +495,32 @@ async function ensurePgSchema(): Promise<boolean> {
 
 export async function findUserByRollNumber(rollNumber: string): Promise<StoredUser | null> {
   const cleanRoll = rollNumber.trim().toUpperCase();
+
+  // 1. Check Firebase Firestore (Primary persistent store)
+  if (firestoreDb) {
+    try {
+      const q = fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('rollNumberUpper', '==', cleanRoll));
+      const snapshot = await fsGetDocs(q);
+      if (!snapshot.empty) {
+        const u = snapshot.docs[0].data() as StoredUser;
+        return {
+          id: u.id,
+          name: u.name,
+          rollNumber: u.rollNumber,
+          branch: u.branch,
+          mobile: u.mobile,
+          year: u.year,
+          shareMobilePublicly: Boolean(u.shareMobilePublicly),
+          passwordHash: u.passwordHash,
+          createdAt: u.createdAt,
+        };
+      }
+    } catch (err) {
+      console.error('Firestore findUserByRollNumber error:', err);
+    }
+  }
+
+  // 2. Check PostgreSQL
   if (pgPool) {
     try {
       await (pgInitPromise ||= ensurePgSchema());
@@ -513,17 +544,41 @@ export async function findUserByRollNumber(rollNumber: string): Promise<StoredUs
       }
     } catch (err) {
       console.error('PostgreSQL findUserByRollNumber error:', err);
-      throw err;
     }
   }
 
-  // Fallback to local memory & disk database
+  // 3. Fallback to local memory & disk database
   reloadDatabaseIfChanged();
   const mem = db.users.find((u) => u.rollNumber.trim().toUpperCase() === cleanRoll);
   return mem || null;
 }
 
 export async function findUserById(userId: string): Promise<StoredUser | null> {
+  // 1. Check Firebase Firestore
+  if (firestoreDb) {
+    try {
+      const docRef = fsDoc(firestoreDb, 'c2c_users', userId);
+      const snap = await fsGetDoc(docRef);
+      if (snap.exists()) {
+        const u = snap.data() as StoredUser;
+        return {
+          id: u.id,
+          name: u.name,
+          rollNumber: u.rollNumber,
+          branch: u.branch,
+          mobile: u.mobile,
+          year: u.year,
+          shareMobilePublicly: Boolean(u.shareMobilePublicly),
+          passwordHash: u.passwordHash,
+          createdAt: u.createdAt,
+        };
+      }
+    } catch (err) {
+      console.error('Firestore findUserById error:', err);
+    }
+  }
+
+  // 2. Check PostgreSQL
   if (pgPool) {
     try {
       await (pgInitPromise ||= ensurePgSchema());
@@ -557,9 +612,9 @@ export async function findUserById(userId: string): Promise<StoredUser | null> {
 
 export async function saveNewUser(newUser: StoredUser): Promise<void> {
   const cleanRoll = newUser.rollNumber.trim().toUpperCase();
-  const sanitizedUser = { ...newUser, rollNumber: cleanRoll };
+  const sanitizedUser = { ...newUser, rollNumber: cleanRoll, rollNumberUpper: cleanRoll };
 
-  // Always update memory & disk cache
+  // 1. Always update local memory & disk cache
   const idx = db.users.findIndex((u) => u.rollNumber.trim().toUpperCase() === cleanRoll);
   if (idx !== -1) {
     db.users[idx] = sanitizedUser;
@@ -568,6 +623,17 @@ export async function saveNewUser(newUser: StoredUser): Promise<void> {
   }
   saveDatabase();
 
+  // 2. Persist to Firebase Firestore
+  if (firestoreDb) {
+    try {
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_users', sanitizedUser.id), sanitizedUser);
+      console.log('Saved new user to Firebase Firestore:', sanitizedUser.rollNumber);
+    } catch (err) {
+      console.error('Firestore saveNewUser error:', err);
+    }
+  }
+
+  // 3. Persist to PostgreSQL if configured
   if (pgPool) {
     try {
       await (pgInitPromise ||= ensurePgSchema());
@@ -595,7 +661,6 @@ export async function saveNewUser(newUser: StoredUser): Promise<void> {
       );
     } catch (err) {
       console.error('PostgreSQL saveNewUser error:', err);
-      throw err;
     }
   }
 }
@@ -603,6 +668,14 @@ export async function saveNewUser(newUser: StoredUser): Promise<void> {
 export async function saveSession(token: string, userId: string): Promise<void> {
   db.sessions.push({ token, userId, createdAt: new Date().toISOString() });
   saveDatabase();
+
+  if (firestoreDb) {
+    try {
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_sessions', token), { token, userId, createdAt: new Date().toISOString() });
+    } catch (err) {
+      console.error('Firestore saveSession error:', err);
+    }
+  }
 
   if (pgPool) {
     try {
@@ -621,12 +694,87 @@ export async function deleteSession(token: string): Promise<void> {
   db.sessions = db.sessions.filter((s) => s.token !== token);
   saveDatabase();
 
+  if (firestoreDb) {
+    try {
+      await fsDeleteDoc(fsDoc(firestoreDb, 'c2c_sessions', token));
+    } catch (err) {
+      console.error('Firestore deleteSession error:', err);
+    }
+  }
+
   if (pgPool) {
     try {
       await (pgInitPromise ||= ensurePgSchema());
       await pgPool.query('DELETE FROM c2c_sessions WHERE token = $1', [token]);
     } catch (err) {
       console.error('PostgreSQL deleteSession error:', err);
+    }
+  }
+}
+
+export async function getAllListingsFromDb(): Promise<ComponentItem[]> {
+  if (firestoreDb) {
+    try {
+      const snapshot = await fsGetDocs(fsCollection(firestoreDb, 'c2c_listings'));
+      if (!snapshot.empty) {
+        const firestoreListings: ComponentItem[] = [];
+        snapshot.docs.forEach((docSnap) => {
+          const item = docSnap.data() as ComponentItem;
+          if (item && item.id) {
+            firestoreListings.push(item);
+          }
+        });
+        if (firestoreListings.length > 0) {
+          return firestoreListings;
+        }
+      }
+    } catch (err) {
+      console.error('Firestore getAllListingsFromDb error:', err);
+    }
+  }
+
+  if (pgPool) {
+    try {
+      await (pgInitPromise ||= ensurePgSchema());
+      const res = await pgPool.query('SELECT data FROM c2c_listings ORDER BY created_at DESC');
+      if (res.rows.length > 0) {
+        return res.rows.map((row) => row.data);
+      }
+    } catch (err) {
+      console.error('PostgreSQL getAllListingsFromDb error:', err);
+    }
+  }
+
+  reloadDatabaseIfChanged();
+  return db.listings || INITIAL_COMPONENTS;
+}
+
+export async function saveListingToDb(listing: ComponentItem): Promise<void> {
+  const idx = db.listings.findIndex((l) => l.id === listing.id);
+  if (idx !== -1) {
+    db.listings[idx] = listing;
+  } else {
+    db.listings.unshift(listing);
+  }
+  saveDatabase();
+
+  if (firestoreDb) {
+    try {
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_listings', listing.id), listing);
+    } catch (err) {
+      console.error('Firestore saveListingToDb error:', err);
+    }
+  }
+
+  if (pgPool) {
+    try {
+      await (pgInitPromise ||= ensurePgSchema());
+      await pgPool.query(
+        'INSERT INTO c2c_listings (id, data, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
+        [listing.id, JSON.stringify(listing)]
+      );
+    } catch (err) {
+      console.error('PostgreSQL saveListingToDb error:', err);
     }
   }
 }
@@ -1004,9 +1152,10 @@ export function createApp(): express.Application {
         });
       }
 
-      if (existing) {
+      if (existing && !req.body.overwrite && !req.body.resetAccount) {
         return res.status(409).json({
-          error: `A student account with roll number ${cleanRoll} is already registered. Please sign in instead.`,
+          error: `A student account with roll number ${cleanRoll} is already registered. If you forgot your password, you can reset and re-register your account credentials.`,
+          canReset: true,
         });
       }
 
@@ -1218,105 +1367,115 @@ export function createApp(): express.Application {
   });
 
   // 7. Get Listings
-  app.get('/api/listings', (req: AuthenticatedRequest, res: Response) => {
-    const currentUserId = req.currentUser?.id;
-    const sanitizedListings = db.listings.map((l) => sanitizeListing(l, currentUserId));
-    res.json({ listings: sanitizedListings });
+  app.get('/api/listings', async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const currentUserId = req.currentUser?.id;
+      const listingsFromDb = await getAllListingsFromDb();
+      const sanitizedListings = listingsFromDb.map((l) => sanitizeListing(l, currentUserId));
+      res.json({ listings: sanitizedListings });
+    } catch (err) {
+      console.error('Failed to fetch listings:', err);
+      res.status(500).json({ error: 'Failed to fetch marketplace listings.' });
+    }
   });
 
   // 8. Create Listing (Enforcing Marketplace Rules & Security)
-  app.post('/api/listings', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-    const user = req.currentUser!;
-    const {
-      name,
-      category,
-      categoryLabel,
-      transactionType,
-      samplePrice,
-      priceNumeric,
-      originalPriceNumeric,
-      rentalPeriod,
-      condition,
-      pickupLocation,
-      description,
-      specs,
-      recommendedLabs,
-      targetYears,
-      iconType,
-      photoUrl,
-      photoUrls,
-    } = req.body;
+  app.post('/api/listings', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.currentUser!;
+      const {
+        name,
+        category,
+        categoryLabel,
+        transactionType,
+        samplePrice,
+        priceNumeric,
+        originalPriceNumeric,
+        rentalPeriod,
+        condition,
+        pickupLocation,
+        description,
+        specs,
+        recommendedLabs,
+        targetYears,
+        iconType,
+        photoUrl,
+        photoUrls,
+      } = req.body;
 
-    // Validate listing title
-    if (!name || typeof name !== 'string' || name.trim().length < 3) {
-      return res.status(400).json({ error: 'Component name is required (at least 3 characters).' });
+      // Validate listing title
+      if (!name || typeof name !== 'string' || name.trim().length < 3) {
+        return res.status(400).json({ error: 'Component name is required (at least 3 characters).' });
+      }
+
+      // Validate transaction type
+      if (!['rent', 'sell', 'donate'].includes(transactionType)) {
+        return res.status(400).json({ error: 'Invalid transaction type (must be rent, sell, or donate).' });
+      }
+
+      // ENFORCE MARKETPLACE RULES:
+      // - 1st year cannot list items.
+      // - 2nd & 3rd years can list items for rent or donate.
+      // - 4th year can list items for sale or donate.
+      const ruleCheck = validateListingPermissions(user.year, transactionType);
+      if (!ruleCheck.isAllowed) {
+        return res.status(403).json({ error: ruleCheck.message });
+      }
+
+      const photosList = Array.isArray(photoUrls) && photoUrls.length > 0 ? photoUrls : (photoUrl ? [photoUrl] : []);
+      const primaryPhoto = photosList[0] || photoUrl;
+
+      // Format display price based on transaction type
+      let formattedPrice = samplePrice;
+      if (transactionType === 'donate') {
+        formattedPrice = 'Free (Donation)';
+      } else if (transactionType === 'sell') {
+        formattedPrice = `₹${priceNumeric || 0}`;
+      } else if (transactionType === 'rent') {
+        formattedPrice = `₹${priceNumeric || 0} / ${rentalPeriod || 'week'}`;
+      }
+
+      // Create new listing attached securely to authenticated student
+      const newListing: ComponentItem = {
+        id: `c2c-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        name: name.trim(),
+        category: category || 'microcontrollers',
+        categoryLabel: categoryLabel || 'Microcontrollers',
+        transactionType,
+        samplePrice: formattedPrice,
+        priceNumeric: transactionType === 'donate' ? 0 : (Number(priceNumeric) || 0),
+        originalPriceNumeric: transactionType === 'sell' && originalPriceNumeric ? Number(originalPriceNumeric) : undefined,
+        rentalPeriod: transactionType === 'rent' ? rentalPeriod : undefined,
+        condition: condition || 'Gently Used (Tested OK)',
+        sellerId: user.id,
+        sellerName: user.name,
+        sellerRollNumber: user.rollNumber,
+        sellerYear: user.year,
+        sellerDept: user.branch,
+        sellerMobile: user.shareMobilePublicly ? user.mobile : undefined,
+        sellerShareMobile: user.shareMobilePublicly,
+        pickupLocation: pickupLocation || 'Campus Central Library / Department Foyer',
+        description: description || 'Component tested and ready for campus peer handover.',
+        specs: Array.isArray(specs) ? specs : [],
+        recommendedLabs: Array.isArray(recommendedLabs) ? recommendedLabs : [],
+        targetYears: Array.isArray(targetYears) && targetYears.length > 0 ? targetYears : ['All Years'],
+        isAvailable: true,
+        dateListed: 'Just now',
+        iconType: iconType || 'microcontroller',
+        photoUrl: primaryPhoto,
+        photoUrls: photosList,
+      };
+
+      await saveListingToDb(newListing);
+
+      res.status(201).json({
+        message: 'Component listed successfully on the campus marketplace.',
+        listing: sanitizeListing(newListing, user.id),
+      });
+    } catch (err) {
+      console.error('Failed to create listing:', err);
+      res.status(500).json({ error: 'Failed to save marketplace listing.' });
     }
-
-    // Validate transaction type
-    if (!['rent', 'sell', 'donate'].includes(transactionType)) {
-      return res.status(400).json({ error: 'Invalid transaction type (must be rent, sell, or donate).' });
-    }
-
-    // ENFORCE MARKETPLACE RULES:
-    // - 1st year cannot list items.
-    // - 2nd & 3rd years can list items for rent or donate.
-    // - 4th year can list items for sale or donate.
-    const ruleCheck = validateListingPermissions(user.year, transactionType);
-    if (!ruleCheck.isAllowed) {
-      return res.status(403).json({ error: ruleCheck.message });
-    }
-
-    const photosList = Array.isArray(photoUrls) && photoUrls.length > 0 ? photoUrls : (photoUrl ? [photoUrl] : []);
-    const primaryPhoto = photosList[0] || photoUrl;
-
-    // Format display price based on transaction type
-    let formattedPrice = samplePrice;
-    if (transactionType === 'donate') {
-      formattedPrice = 'Free (Donation)';
-    } else if (transactionType === 'sell') {
-      formattedPrice = `₹${priceNumeric || 0}`;
-    } else if (transactionType === 'rent') {
-      formattedPrice = `₹${priceNumeric || 0} / ${rentalPeriod || 'week'}`;
-    }
-
-    // Create new listing attached securely to authenticated student
-    const newListing: ComponentItem = {
-      id: `c2c-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      name: name.trim(),
-      category: category || 'microcontrollers',
-      categoryLabel: categoryLabel || 'Microcontrollers',
-      transactionType,
-      samplePrice: formattedPrice,
-      priceNumeric: transactionType === 'donate' ? 0 : (Number(priceNumeric) || 0),
-      originalPriceNumeric: transactionType === 'sell' && originalPriceNumeric ? Number(originalPriceNumeric) : undefined,
-      rentalPeriod: transactionType === 'rent' ? rentalPeriod : undefined,
-      condition: condition || 'Gently Used (Tested OK)',
-      sellerId: user.id,
-      sellerName: user.name,
-      sellerRollNumber: user.rollNumber,
-      sellerYear: user.year,
-      sellerDept: user.branch,
-      sellerMobile: user.shareMobilePublicly ? user.mobile : undefined,
-      sellerShareMobile: user.shareMobilePublicly,
-      pickupLocation: pickupLocation || 'Campus Central Library / Department Foyer',
-      description: description || 'Component tested and ready for campus peer handover.',
-      specs: Array.isArray(specs) ? specs : [],
-      recommendedLabs: Array.isArray(recommendedLabs) ? recommendedLabs : [],
-      targetYears: Array.isArray(targetYears) && targetYears.length > 0 ? targetYears : ['All Years'],
-      isAvailable: true,
-      dateListed: 'Just now',
-      iconType: iconType || 'microcontroller',
-      photoUrl: primaryPhoto,
-      photoUrls: photosList,
-    };
-
-    db.listings.unshift(newListing);
-    saveDatabase();
-
-    res.status(201).json({
-      message: 'Component listed successfully on the campus marketplace.',
-      listing: sanitizeListing(newListing, user.id),
-    });
   });
 
   // 8b. Update Listing (Owner Only)

@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Student user profile and authentication credentials",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "rollNumber": { "type": "string" },
+        "branch": { "type": "string" },
+        "mobile": { "type": "string" },
+        "year": { "type": "string" },
+        "shareMobilePublicly": { "type": "boolean" },
+        "passwordHash": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "rollNumber", "branch", "mobile", "year", "passwordHash"]
+    },
+    "Listing": {
+      "title": "Listing",
+      "description": "Lab component listing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "data": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "data"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "Active session token",
+      "type": "object",
+      "properties": {
+        "token": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["token", "userId"]
+    }
+  },
+  "firestore": {
+    "/c2c_users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Student user accounts collection"
+    },
+    "/c2c_sessions/{token}": {
+      "schema": { "$ref": "#/entities/Session" },
+      "description": "Session tokens collection"
+    },
+    "/c2c_listings/{listingId}": {
+      "schema": { "$ref": "#/entities/Listing" },
+      "description": "Lab component listings collection"
+    }
+  }
+}

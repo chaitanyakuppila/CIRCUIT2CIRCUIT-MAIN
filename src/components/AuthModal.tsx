@@ -232,7 +232,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="font-semibold text-white flex items-center gap-1.5">
                 <Info className="w-3.5 h-3.5 text-sky-400" />
-                Password Assistance
+                Password Reset / Re-register
               </span>
               <button 
                 type="button" 
@@ -243,8 +243,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </button>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Circuit2Circuit accounts are student-managed on campus. If you need a password reset, please contact your class representative or department student coordinator. You can also test sign-in immediately using any demo account below.
+              If you forgot your password or need a new account for roll number <span className="font-mono text-emerald-300">{loginRoll || 'your roll number'}</span>, click below to register:
             </p>
+            <button
+              type="button"
+              onClick={() => {
+                setRollNumber(loginRoll);
+                setMode('register');
+                setShowForgotNotice(false);
+                setErrorMsg(null);
+              }}
+              className="mt-1 px-3 py-1.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
+            >
+              Create fresh account for {loginRoll || 'your roll number'}
+            </button>
           </div>
         )}
 
@@ -361,37 +373,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </button>
             </div>
 
-            {/* Quick Demo Accounts for seamless campus evaluation */}
-            <div className="pt-4 border-t border-slate-800/80">
-              <div className="flex items-center justify-between text-[11px] text-slate-400 mb-2">
-                <span className="font-medium text-slate-300">Quick sign-in demo accounts:</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
+            {/* New Student Account Prompt */}
+            <div className="pt-3.5 border-t border-slate-800/80 text-center">
+              <p className="text-xs text-slate-400 leading-relaxed">
+                New Sri Vasavi student?{' '}
                 <button
                   type="button"
-                  onClick={() => fillQuickDemo('25A81A4300', 'Password123')}
-                  className="px-2.5 py-1.5 min-h-[36px] text-[11px] font-mono font-medium bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer flex items-center"
-                  title="2nd Year AI & DS student"
+                  onClick={() => {
+                    setMode('register');
+                    setErrorMsg(null);
+                  }}
+                  className="font-semibold text-emerald-400 hover:text-emerald-300 underline cursor-pointer"
                 >
-                  25A81A4300
+                  Register your account
                 </button>
-                <button
-                  type="button"
-                  onClick={() => fillQuickDemo('21A81A0501', 'Password123')}
-                  className="px-2.5 py-1.5 min-h-[36px] text-[11px] font-mono font-medium bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer flex items-center"
-                  title="4th Year CSE senior"
-                >
-                  21A81A0501
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillQuickDemo('25A81A0401', 'Password123')}
-                  className="px-2.5 py-1.5 min-h-[36px] text-[11px] font-mono font-medium bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors cursor-pointer flex items-center"
-                  title="1st Year ECE student"
-                >
-                  25A81A0401
-                </button>
-              </div>
+              </p>
             </div>
           </form>
         ) : (

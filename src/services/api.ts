@@ -144,6 +144,7 @@ export const api = {
     year: string;
     password: string;
     shareMobilePublicly: boolean;
+    resetAccount?: boolean;
   }): Promise<{ message: string; token: string; user: StudentUser }> {
     const res = await request<{ message: string; token: string; user: StudentUser }>('/api/auth/register', {
       method: 'POST',
