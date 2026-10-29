@@ -50,17 +50,15 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({ item, onSelect, on
     >
       <div className="space-y-4 flex-1">
         
-        {/* Hardware Visual Preview - Only rendered when listing has an actual photo */}
-        {hasPhoto ? (
-          <div className="cursor-pointer" onClick={() => onSelect(item)}>
-            <HardwareVisual 
-              iconType={item.iconType} 
-              category={item.category} 
-              name={item.name} 
-              photoUrl={item.photoUrl}
-            />
-          </div>
-        ) : null}
+        {/* Hardware Visual Preview with photo or neutral fallback */}
+        <div className="cursor-pointer" onClick={() => onSelect(item)}>
+          <HardwareVisual 
+            iconType={item.iconType} 
+            category={item.category} 
+            name={item.name} 
+            photoUrl={item.photoUrl}
+          />
+        </div>
 
         {/* Transaction Type & Price Header */}
         <div className="flex items-start justify-between gap-2 pt-1">

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 import {
   DEFAULT_BRANCHES,
   validateVasaviRollNumber,
@@ -352,28 +353,330 @@ function loadDatabase(): DatabaseSchema {
     }
   }
 
+// --- Persistent Database & Cryptographic Session Architecture ---
+
+const AUTH_SECRET =
+  process.env.AUTH_SECRET ||
+  process.env.JWT_SECRET ||
+  process.env.SESSION_SECRET ||
+  'circuit2circuit-srivasavi-autonomous-key-2026';
+
+interface SignedSessionPayload {
+  userId: string;
+  rollNumber: string;
+  name: string;
+  branch: string;
+  year: string;
+  exp: number;
+}
+
+export function createSignedSessionToken(user: StoredUser): string {
+  const payload: SignedSessionPayload = {
+    userId: user.id,
+    rollNumber: user.rollNumber.trim().toUpperCase(),
+    name: user.name,
+    branch: user.branch,
+    year: user.year,
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days session
+  };
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', AUTH_SECRET).update(payloadB64).digest('base64url');
+  return `c2c_${payloadB64}.${signature}`;
+}
+
+export function verifySignedSessionToken(token: string): SignedSessionPayload | null {
+  if (!token || !token.startsWith('c2c_')) return null;
+  const raw = token.slice(4);
+  const dotIndex = raw.lastIndexOf('.');
+  if (dotIndex === -1) return null;
+  const payloadB64 = raw.slice(0, dotIndex);
+  const signature = raw.slice(dotIndex + 1);
+
+  const expectedSig = crypto.createHmac('sha256', AUTH_SECRET).update(payloadB64).digest('base64url');
+  if (signature !== expectedSig) return null;
+
+  try {
+    const payload: SignedSessionPayload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'));
+    if (payload.exp < Date.now()) return null;
+    return payload;
+  } catch (e) {
+    return null;
+  }
+}
+
+// PostgreSQL Connection Pool Setup
+const PG_CONN_STRING =
+  process.env.POSTGRES_URL ||
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_PRISMA_URL ||
+  process.env.POSTGRES_URL_NON_POOLING ||
+  process.env.PGURI ||
+  '';
+
+let pgPool: pg.Pool | null = null;
+let pgInitPromise: Promise<boolean> | null = null;
+
+if (PG_CONN_STRING) {
+  try {
+    pgPool = new pg.Pool({
+      connectionString: PG_CONN_STRING,
+      ssl: PG_CONN_STRING.includes('localhost') ? false : { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+    });
+  } catch (e) {
+    console.error('Failed to create PostgreSQL pool:', e);
+  }
+}
+
+async function ensurePgSchema(): Promise<boolean> {
+  if (!pgPool) return false;
+  try {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS c2c_users (
+        id VARCHAR(64) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        roll_number VARCHAR(32) UNIQUE NOT NULL,
+        branch VARCHAR(255) NOT NULL,
+        mobile VARCHAR(32) NOT NULL,
+        year VARCHAR(32) NOT NULL,
+        share_mobile_publicly BOOLEAN NOT NULL DEFAULT FALSE,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_c2c_users_roll ON c2c_users (UPPER(roll_number));
+
+      CREATE TABLE IF NOT EXISTS c2c_sessions (
+        token TEXT PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // Seed default users if empty
+    const checkCount = await pgPool.query('SELECT COUNT(*) as count FROM c2c_users');
+    if (parseInt(checkCount.rows[0].count, 10) === 0 && db.users && db.users.length > 0) {
+      for (const u of db.users) {
+        await pgPool.query(
+          `INSERT INTO c2c_users (id, name, roll_number, branch, mobile, year, share_mobile_publicly, password_hash, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ON CONFLICT (roll_number) DO NOTHING`,
+          [
+            u.id,
+            u.name,
+            u.rollNumber.trim().toUpperCase(),
+            u.branch,
+            u.mobile,
+            u.year,
+            u.shareMobilePublicly,
+            u.passwordHash,
+            u.createdAt,
+          ]
+        );
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error('PostgreSQL ensurePgSchema failed:', err);
+    return false;
+  }
+}
+
+export async function findUserByRollNumber(rollNumber: string): Promise<StoredUser | null> {
+  const cleanRoll = rollNumber.trim().toUpperCase();
+  if (pgPool) {
+    try {
+      await (pgInitPromise ||= ensurePgSchema());
+      const res = await pgPool.query(
+        'SELECT id, name, roll_number AS "rollNumber", branch, mobile, year, share_mobile_publicly AS "shareMobilePublicly", password_hash AS "passwordHash", created_at AS "createdAt" FROM c2c_users WHERE UPPER(roll_number) = $1',
+        [cleanRoll]
+      );
+      if (res.rows.length > 0) {
+        const u = res.rows[0];
+        return {
+          id: u.id,
+          name: u.name,
+          rollNumber: u.rollNumber,
+          branch: u.branch,
+          mobile: u.mobile,
+          year: u.year,
+          shareMobilePublicly: Boolean(u.shareMobilePublicly),
+          passwordHash: u.passwordHash,
+          createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt),
+        };
+      }
+    } catch (err) {
+      console.error('PostgreSQL findUserByRollNumber error:', err);
+      throw err;
+    }
+  }
+
+  // Fallback to local memory & disk database
+  reloadDatabaseIfChanged();
+  const mem = db.users.find((u) => u.rollNumber.trim().toUpperCase() === cleanRoll);
+  return mem || null;
+}
+
+export async function findUserById(userId: string): Promise<StoredUser | null> {
+  if (pgPool) {
+    try {
+      await (pgInitPromise ||= ensurePgSchema());
+      const res = await pgPool.query(
+        'SELECT id, name, roll_number AS "rollNumber", branch, mobile, year, share_mobile_publicly AS "shareMobilePublicly", password_hash AS "passwordHash", created_at AS "createdAt" FROM c2c_users WHERE id = $1',
+        [userId]
+      );
+      if (res.rows.length > 0) {
+        const u = res.rows[0];
+        return {
+          id: u.id,
+          name: u.name,
+          rollNumber: u.rollNumber,
+          branch: u.branch,
+          mobile: u.mobile,
+          year: u.year,
+          shareMobilePublicly: Boolean(u.shareMobilePublicly),
+          passwordHash: u.passwordHash,
+          createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt),
+        };
+      }
+    } catch (err) {
+      console.error('PostgreSQL findUserById error:', err);
+    }
+  }
+
+  reloadDatabaseIfChanged();
+  const mem = db.users.find((u) => u.id === userId);
+  return mem || null;
+}
+
+export async function saveNewUser(newUser: StoredUser): Promise<void> {
+  const cleanRoll = newUser.rollNumber.trim().toUpperCase();
+  const sanitizedUser = { ...newUser, rollNumber: cleanRoll };
+
+  // Always update memory & disk cache
+  const idx = db.users.findIndex((u) => u.rollNumber.trim().toUpperCase() === cleanRoll);
+  if (idx !== -1) {
+    db.users[idx] = sanitizedUser;
+  } else {
+    db.users.push(sanitizedUser);
+  }
+  saveDatabase();
+
+  if (pgPool) {
+    try {
+      await (pgInitPromise ||= ensurePgSchema());
+      await pgPool.query(
+        `INSERT INTO c2c_users (id, name, roll_number, branch, mobile, year, share_mobile_publicly, password_hash, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (roll_number) DO UPDATE SET
+           name = EXCLUDED.name,
+           branch = EXCLUDED.branch,
+           mobile = EXCLUDED.mobile,
+           year = EXCLUDED.year,
+           share_mobile_publicly = EXCLUDED.share_mobile_publicly,
+           password_hash = EXCLUDED.password_hash`,
+        [
+          sanitizedUser.id,
+          sanitizedUser.name,
+          sanitizedUser.rollNumber,
+          sanitizedUser.branch,
+          sanitizedUser.mobile,
+          sanitizedUser.year,
+          sanitizedUser.shareMobilePublicly,
+          sanitizedUser.passwordHash,
+          sanitizedUser.createdAt,
+        ]
+      );
+    } catch (err) {
+      console.error('PostgreSQL saveNewUser error:', err);
+      throw err;
+    }
+  }
+}
+
+export async function saveSession(token: string, userId: string): Promise<void> {
+  db.sessions.push({ token, userId, createdAt: new Date().toISOString() });
+  saveDatabase();
+
+  if (pgPool) {
+    try {
+      await (pgInitPromise ||= ensurePgSchema());
+      await pgPool.query(
+        'INSERT INTO c2c_sessions (token, user_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (token) DO NOTHING',
+        [token, userId]
+      );
+    } catch (err) {
+      console.error('PostgreSQL saveSession error:', err);
+    }
+  }
+}
+
+export async function deleteSession(token: string): Promise<void> {
+  db.sessions = db.sessions.filter((s) => s.token !== token);
+  saveDatabase();
+
+  if (pgPool) {
+    try {
+      await (pgInitPromise ||= ensurePgSchema());
+      await pgPool.query('DELETE FROM c2c_sessions WHERE token = $1', [token]);
+    } catch (err) {
+      console.error('PostgreSQL deleteSession error:', err);
+    }
+  }
+}
+
 // Authentication Middleware
 interface AuthenticatedRequest extends Request {
   currentUser?: StoredUser;
   sessionToken?: string;
 }
 
-function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+async function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return next();
   }
 
   const token = authHeader.substring(7).trim();
-  const session = db.sessions.find((s) => s.token === token);
-  if (!session) {
-    return next();
+
+  // 1. Verify Cryptographic Signed Session Token (Stateless across all serverless lambda containers)
+  const tokenPayload = verifySignedSessionToken(token);
+  if (tokenPayload) {
+    try {
+      const user = await findUserById(tokenPayload.userId);
+      if (user) {
+        req.currentUser = user;
+        req.sessionToken = token;
+        return next();
+      }
+      // Reconstruct safe student user from verified cryptographic token payload
+      req.currentUser = {
+        id: tokenPayload.userId,
+        name: tokenPayload.name,
+        rollNumber: tokenPayload.rollNumber,
+        branch: tokenPayload.branch,
+        mobile: '',
+        year: tokenPayload.year as StudentUser['year'],
+        shareMobilePublicly: false,
+        passwordHash: '',
+        createdAt: new Date().toISOString(),
+      };
+      req.sessionToken = token;
+      return next();
+    } catch (e) {
+      // Fallback to traditional sessions
+    }
   }
 
-  const user = db.users.find((u) => u.id === session.userId);
-  if (user) {
-    req.currentUser = user;
-    req.sessionToken = token;
+  // 2. Check traditional session token
+  reloadDatabaseIfChanged();
+  const session = db.sessions.find((s) => s.token === token);
+  if (session) {
+    const user = await findUserById(session.userId);
+    if (user) {
+      req.currentUser = user;
+      req.sessionToken = token;
+    }
   }
   next();
 }
@@ -397,11 +700,27 @@ function sanitizeUser(user: StoredUser): StudentUser {
 function sanitizeListing(listing: ComponentItem, currentUserId?: string): ComponentItem {
   let cleanedPrice = listing.samplePrice ? listing.samplePrice.replace(/\s*\(sample.*?\)/gi, '').trim() : listing.samplePrice;
   
-  // Attach verified product photos if missing on sample items and normalize legacy paths
+  // Attach verified product photos if missing on sample items and normalize legacy or local URLs
   let photoUrl = listing.photoUrl;
-  if (photoUrl && photoUrl.startsWith('/src/assets/images/')) {
-    photoUrl = photoUrl.replace('/src/assets/images/', '/assets/images/');
+  if (photoUrl) {
+    // Strip localhost or loopback URLs
+    photoUrl = photoUrl.replace(/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i, '').trim();
+
+    if (photoUrl.startsWith('/src/assets/images/')) {
+      photoUrl = photoUrl.replace('/src/assets/images/', '/assets/images/');
+    } else if (photoUrl.startsWith('src/assets/images/')) {
+      photoUrl = photoUrl.replace('src/assets/images/', '/assets/images/');
+    }
+
+    // If listing references an uploaded file and we have it in db.uploads, inline data URI for 100% serverless persistence
+    if (photoUrl.startsWith('/uploads/') || photoUrl.startsWith('/api/uploads/')) {
+      const fileId = path.basename(photoUrl.split('?')[0]);
+      if (db.uploads && db.uploads[fileId]) {
+        photoUrl = db.uploads[fileId];
+      }
+    }
   }
+
   if (!photoUrl && listing.name) {
     const lower = listing.name.toLowerCase();
     if (lower.includes('nano')) {
@@ -433,7 +752,24 @@ function sanitizeListing(listing: ComponentItem, currentUserId?: string): Compon
     }
   }
 
-  const photoUrls = listing.photoUrls;
+  let photoUrls = listing.photoUrls;
+  if (Array.isArray(photoUrls) && photoUrls.length > 0) {
+    photoUrls = photoUrls.map((u) => {
+      let clean = u.replace(/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i, '').trim();
+      if (clean.startsWith('/src/assets/images/')) clean = clean.replace('/src/assets/images/', '/assets/images/');
+      if (clean.startsWith('src/assets/images/')) clean = clean.replace('src/assets/images/', '/assets/images/');
+      if (clean.startsWith('/uploads/') || clean.startsWith('/api/uploads/')) {
+        const fileId = path.basename(clean.split('?')[0]);
+        if (db.uploads && db.uploads[fileId]) {
+          clean = db.uploads[fileId];
+        }
+      }
+      return clean;
+    });
+  } else if (photoUrl) {
+    photoUrls = [photoUrl];
+  }
+
   const cleanListing = { ...listing, samplePrice: cleanedPrice, photoUrl, photoUrls };
 
   // If user is owner or if seller opted in to share mobile publicly, include mobile
@@ -608,10 +944,12 @@ export function createApp(): express.Application {
       db.uploads[fileId] = normalizedDataUri;
       saveDatabase();
 
-      const photoUrl = `/uploads/${fileId}`;
+      const localPath = `/uploads/${fileId}`;
       return res.status(201).json({
         message: 'Photo uploaded successfully.',
-        photoUrl,
+        photoUrl: normalizedDataUri,
+        localPath,
+        fileId,
       });
     } catch (err: any) {
       console.error('Upload failed:', err);
@@ -633,7 +971,7 @@ export function createApp(): express.Application {
   });
 
   // 2. Student Registration
-  app.post(['/api/auth/register', '/auth/register'], (req: Request, res: Response) => {
+  app.post(['/api/auth/register', '/auth/register'], async (req: Request, res: Response) => {
     try {
       const { name, rollNumber, branch, mobile, year, password, shareMobilePublicly } = req.body || {};
 
@@ -647,10 +985,19 @@ export function createApp(): express.Application {
       if (!rollValidation.isValid) {
         return res.status(400).json({ error: rollValidation.error });
       }
-      const cleanRoll = rollValidation.normalized;
+      const cleanRoll = rollValidation.normalized.trim().toUpperCase();
 
-      // Check uniqueness of Roll Number
-      const existing = db.users.find((u) => u.rollNumber.toUpperCase() === cleanRoll);
+      // Check uniqueness of Roll Number in persistent database
+      let existing: StoredUser | null = null;
+      try {
+        existing = await findUserByRollNumber(cleanRoll);
+      } catch (dbErr: any) {
+        console.error('Database connection error during roll check:', dbErr);
+        return res.status(500).json({
+          error: 'Database connection error while checking roll number availability. Please try again.',
+        });
+      }
+
       if (existing) {
         return res.status(409).json({
           error: `A student account with roll number ${cleanRoll} is already registered. Please sign in instead.`,
@@ -697,20 +1044,21 @@ export function createApp(): express.Application {
         createdAt: new Date().toISOString(),
       };
 
-      db.users.push(newUser);
+      try {
+        await saveNewUser(newUser);
+      } catch (saveErr: any) {
+        console.error('Database error saving new user:', saveErr);
+        return res.status(500).json({
+          error: 'Database error saving student account. Please verify database connection settings.',
+        });
+      }
 
-      // Create Session Token
-      const sessionToken = crypto.randomBytes(32).toString('hex');
-      db.sessions.push({
-        token: sessionToken,
-        userId: newUser.id,
-        createdAt: new Date().toISOString(),
-      });
-
-      saveDatabase();
+      // Create Cryptographic Session Token (Stateless across Vercel serverless containers)
+      const sessionToken = createSignedSessionToken(newUser);
+      await saveSession(sessionToken, newUser.id);
 
       return res.status(201).json({
-        message: 'Student account created successfully.',
+        message: `Student account created successfully. Welcome, ${newUser.name}!`,
         token: sessionToken,
         user: sanitizeUser(newUser),
       });
@@ -721,7 +1069,7 @@ export function createApp(): express.Application {
   });
 
   // 3. Student Sign-In
-  app.post(['/api/auth/login', '/auth/login'], (req: Request, res: Response) => {
+  app.post(['/api/auth/login', '/auth/login'], async (req: Request, res: Response) => {
     try {
       const { rollNumber, password } = req.body || {};
 
@@ -730,41 +1078,49 @@ export function createApp(): express.Application {
       }
 
       const cleanRoll = String(rollNumber).trim().toUpperCase();
-      const user = db.users.find((u) => u.rollNumber.toUpperCase() === cleanRoll);
 
-      if (!user || !verifyPassword(String(password), user.passwordHash)) {
-        return res.status(401).json({
-          error: 'Incorrect roll number or password. Please verify your credentials and try again.',
+      let user: StoredUser | null = null;
+      try {
+        user = await findUserByRollNumber(cleanRoll);
+      } catch (dbErr: any) {
+        console.error('Database error during sign-in lookup:', dbErr);
+        return res.status(500).json({
+          error: 'Database connection error during sign-in. Please try again in a moment.',
         });
       }
 
-      // Issue Session Token
-      const sessionToken = crypto.randomBytes(32).toString('hex');
-      db.sessions.push({
-        token: sessionToken,
-        userId: user.id,
-        createdAt: new Date().toISOString(),
-      });
+      if (!user) {
+        return res.status(401).json({
+          error: `No registered student account found for roll number ${cleanRoll}. Please check your roll number or register a new account.`,
+        });
+      }
 
-      saveDatabase();
+      if (!verifyPassword(String(password), user.passwordHash)) {
+        return res.status(401).json({
+          error: `Incorrect password for roll number ${cleanRoll}. Please verify your password and try again.`,
+        });
+      }
+
+      // Issue Cryptographic Session Token (survives container recycling and navigation)
+      const sessionToken = createSignedSessionToken(user);
+      await saveSession(sessionToken, user.id);
 
       return res.json({
-        message: 'Welcome back!',
+        message: `Welcome back, ${user.name}!`,
         token: sessionToken,
         user: sanitizeUser(user),
       });
     } catch (err: any) {
       console.error('Sign-in failed:', err);
-      return res.status(500).json({ error: 'Sign-in failed due to a server error. Please try again.' });
+      return res.status(500).json({ error: 'Sign-in failed due to an internal server error. Please try again.' });
     }
   });
 
   // 4. Student Sign-Out
-  app.post(['/api/auth/logout', '/auth/logout'], (req: AuthenticatedRequest, res: Response) => {
+  app.post(['/api/auth/logout', '/auth/logout'], async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (req.sessionToken) {
-        db.sessions = db.sessions.filter((s) => s.token !== req.sessionToken);
-        saveDatabase();
+        await deleteSession(req.sessionToken);
       }
       return res.json({ message: 'Signed out successfully.' });
     } catch (err: any) {
@@ -782,7 +1138,7 @@ export function createApp(): express.Application {
   });
 
   // 6. Update Profile
-  app.put(['/api/auth/profile', '/auth/profile'], requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.put(['/api/auth/profile', '/auth/profile'], requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const user = req.currentUser!;
     const { name, branch, mobile, year, shareMobilePublicly, currentPassword, newPassword } = req.body;
 
@@ -847,7 +1203,7 @@ export function createApp(): express.Application {
       user.passwordHash = hashPassword(newPassword);
     }
 
-    saveDatabase();
+    await saveNewUser(user);
 
     return res.json({
       message: 'Profile updated successfully.',

@@ -42,10 +42,18 @@ export function getApiUrl(endpoint: string): string {
 
 export function resolveImageUrl(url?: string): string | undefined {
   if (!url) return undefined;
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+  if (url.startsWith('data:')) {
     return url;
   }
-  let normalizedUrl = url.trim();
+
+  // Strip localhost/127.0.0.1 prefixes so deployed Vercel and mobile devices never attempt to query local loopback
+  let normalizedUrl = url.trim().replace(/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i, '');
+
+  if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
+    return normalizedUrl;
+  }
+
+  // Normalize any legacy or Vite source paths to public assets
   if (normalizedUrl.startsWith('/src/assets/images/')) {
     normalizedUrl = normalizedUrl.replace('/src/assets/images/', '/assets/images/');
   } else if (normalizedUrl.startsWith('src/assets/images/')) {
@@ -54,6 +62,19 @@ export function resolveImageUrl(url?: string): string | undefined {
 
   if (!normalizedUrl.startsWith('/') && !normalizedUrl.startsWith('data:')) {
     normalizedUrl = `/${normalizedUrl}`;
+  }
+
+  // Check client-side persistent cache for student-uploaded photos
+  if (normalizedUrl.startsWith('/uploads/') || normalizedUrl.startsWith('/api/uploads/')) {
+    const fileId = normalizedUrl.split('/').pop()?.split('?')[0];
+    if (fileId) {
+      try {
+        const cached = localStorage.getItem(`c2c_cached_img_${fileId}`);
+        if (cached && (cached.startsWith('data:image/') || cached.startsWith('http'))) {
+          return cached;
+        }
+      } catch (e) {}
+    }
   }
 
   if (API_BASE_URL && (normalizedUrl.startsWith('/uploads/') || normalizedUrl.startsWith('/api/uploads/'))) {
@@ -93,7 +114,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   if (!response.ok) {
     if (response.status === 401) {
       throw new Error(
-        data.error || 'Incorrect roll number or password. Please check your credentials and try again.'
+        data.error || 'Authentication required. Please sign in with your college credentials.'
       );
     }
     if (response.status === 404) {

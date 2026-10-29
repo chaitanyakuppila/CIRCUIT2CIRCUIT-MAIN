@@ -96,7 +96,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onAuthSuccess(res.user, res.message);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Incorrect roll number or password. Please try again.');
+      setErrorMsg(err.message || 'Unable to sign in. Please check your details and try again.');
     } finally {
       setLoading(false);
     }

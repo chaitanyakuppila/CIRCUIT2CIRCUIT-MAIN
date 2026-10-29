@@ -31,13 +31,13 @@ export const HardwareVisual: React.FC<HardwareVisualProps> = ({ name, photoUrl }
     }
   }, [resolvedPhotoUrl]);
 
-  // Timeout fallback: if image doesn't load within 4.5 seconds, cleanly show Photo unavailable
+  // Timeout fallback: if image doesn't load within 3.5 seconds, cleanly show Photo unavailable
   useEffect(() => {
     if (!resolvedPhotoUrl || isLoaded || imageError) return;
 
     const timeoutTimer = setTimeout(() => {
       setImageError(true);
-    }, 4500);
+    }, 3500);
 
     return () => clearTimeout(timeoutTimer);
   }, [resolvedPhotoUrl, isLoaded, imageError]);

@@ -183,7 +183,49 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
     );
   }
 
-  // Photo Upload Handler
+  // Helper to downscale and compress high-resolution smartphone/camera photos before upload
+  const compressImageFile = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (readerEvent) => {
+        const rawResult = readerEvent.target?.result as string;
+        const img = new Image();
+        img.onload = () => {
+          const MAX_DIM = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_DIM || height > MAX_DIM) {
+            if (width > height) {
+              height = Math.round((height * MAX_DIM) / width);
+              width = MAX_DIM;
+            } else {
+              width = Math.round((width * MAX_DIM) / height);
+              height = MAX_DIM;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(rawResult);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(compressedDataUrl);
+        };
+        img.onerror = () => resolve(rawResult);
+        img.src = rawResult;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Photo Upload Handler with client-side compression and resilient persistence
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -199,23 +241,25 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
           setPhotoError(`"${file.name}" is not an accepted image format. Please select a JPG, PNG, or WebP photo.`);
           continue;
         }
-        if (file.size > 5 * 1024 * 1024) {
-          setPhotoError(`File "${file.name}" exceeds the 5MB campus upload limit.`);
+        if (file.size > 8 * 1024 * 1024) {
+          setPhotoError(`File "${file.name}" exceeds the maximum upload limit (8MB).`);
           continue;
         }
 
-        // Convert file to base64 data URL
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-        });
-        reader.readAsDataURL(file);
-
-        const base64Data = await base64Promise;
+        // Compress image client-side to ensure fast uploads and persistent storage
+        const base64Data = await compressImageFile(file);
         const uploadRes = await api.uploadPhoto(base64Data);
+        
         if (uploadRes.photoUrl) {
           newUrls.push(uploadRes.photoUrl);
+          
+          // Cache in localStorage to ensure uploaded photos persist on refresh even across ephemeral lambdas
+          const fileId = uploadRes.photoUrl.split('/').pop()?.split('?')[0];
+          if (fileId) {
+            try {
+              localStorage.setItem(`c2c_cached_img_${fileId}`, base64Data);
+            } catch (e) {}
+          }
         }
       }
       setPhotoUrls(newUrls);

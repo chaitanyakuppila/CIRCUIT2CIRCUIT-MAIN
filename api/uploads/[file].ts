@@ -14,6 +14,8 @@ export default function handler(req: any, res: any) {
     path.join(process.cwd(), 'public', 'uploads', fileName),
     path.join(process.cwd(), 'dist', 'uploads', fileName),
     path.join(__dirname, '..', '..', 'public', 'uploads', fileName),
+    path.join(process.cwd(), 'public', 'assets', 'images', fileName),
+    path.join(process.cwd(), 'dist', 'assets', 'images', fileName),
   ];
 
   for (const candidate of candidates) {
@@ -35,7 +37,7 @@ export default function handler(req: any, res: any) {
     }
   }
 
-  // Fallback to db.json if running in a fresh serverless instance
+  // Fallback to db.json (both /tmp runtime and bundled repo) if running in a fresh serverless instance
   const dbCandidates = [
     path.join('/tmp', 'c2c-data', 'db.json'),
     path.join(process.cwd(), 'data', 'db.json'),
@@ -45,13 +47,24 @@ export default function handler(req: any, res: any) {
     if (fs.existsSync(dbPath)) {
       try {
         const dbContent = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
-        if (dbContent.uploads && dbContent.uploads[fileName]) {
-          const dataUri = dbContent.uploads[fileName];
-          const matches = dataUri.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/i);
+        let targetDataUri = dbContent.uploads ? dbContent.uploads[fileName] : null;
+
+        // If not found in uploads table, check if any listing has this photo embedded
+        if (!targetDataUri && Array.isArray(dbContent.listings)) {
+          for (const item of dbContent.listings) {
+            if (item.photoUrl && typeof item.photoUrl === 'string' && item.photoUrl.includes(fileName) && item.photoUrl.startsWith('data:image/')) {
+              targetDataUri = item.photoUrl;
+              break;
+            }
+          }
+        }
+
+        if (targetDataUri) {
+          const matches = targetDataUri.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/i);
           if (matches) {
             const contentType = matches[1].toLowerCase();
             const buffer = Buffer.from(matches[2], 'base64');
-            // Write to /tmp so subsequent requests hit disk directly
+            // Write to /tmp so subsequent requests in this container hit disk directly
             try {
               const tmpDir = path.join('/tmp', 'c2c-uploads');
               if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
