@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ComponentItem } from '../types';
 import { ImageOff } from 'lucide-react';
 import { resolveImageUrl } from '../services/api';
@@ -13,13 +13,46 @@ interface HardwareVisualProps {
 export const HardwareVisual: React.FC<HardwareVisualProps> = ({ name, photoUrl }) => {
   const [imageError, setImageError] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const resolvedPhotoUrl = resolveImageUrl(photoUrl);
 
-  // Reset state if photoUrl changes
+  // Reset state when photoUrl changes
   useEffect(() => {
     setImageError(false);
     setIsLoaded(false);
-  }, [photoUrl, resolvedPhotoUrl]);
+
+    // If already in browser cache and completed
+    if (imgRef.current && imgRef.current.complete) {
+      if (imgRef.current.naturalWidth > 0) {
+        setIsLoaded(true);
+      } else {
+        setImageError(true);
+      }
+    }
+  }, [resolvedPhotoUrl]);
+
+  // Timeout fallback: if image doesn't load within 4.5 seconds, cleanly show Photo unavailable
+  useEffect(() => {
+    if (!resolvedPhotoUrl || isLoaded || imageError) return;
+
+    const timeoutTimer = setTimeout(() => {
+      setImageError(true);
+    }, 4500);
+
+    return () => clearTimeout(timeoutTimer);
+  }, [resolvedPhotoUrl, isLoaded, imageError]);
+
+  // Ref callback to catch already cached images synchronously on mount
+  const handleImageRef = (node: HTMLImageElement | null) => {
+    imgRef.current = node;
+    if (node && node.complete) {
+      if (node.naturalWidth > 0) {
+        setIsLoaded(true);
+      } else {
+        setImageError(true);
+      }
+    }
+  };
 
   // If a valid resolvedPhotoUrl is provided and hasn't errored out
   if (resolvedPhotoUrl && !imageError) {
@@ -31,12 +64,20 @@ export const HardwareVisual: React.FC<HardwareVisualProps> = ({ name, photoUrl }
           </div>
         )}
         <img
+          ref={handleImageRef}
           src={resolvedPhotoUrl}
           alt={name}
-          loading="lazy"
           decoding="async"
-          onLoad={() => setIsLoaded(true)}
-          onError={() => setImageError(true)}
+          onLoad={(e) => {
+            if (e.currentTarget.naturalWidth > 0) {
+              setIsLoaded(true);
+            } else {
+              setImageError(true);
+            }
+          }}
+          onError={() => {
+            setImageError(true);
+          }}
           className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 ${
             isLoaded ? 'opacity-100' : 'opacity-0'
           }`}
@@ -45,7 +86,7 @@ export const HardwareVisual: React.FC<HardwareVisualProps> = ({ name, photoUrl }
     );
   }
 
-  // If photo is missing or failed to load, show a clean "Photo unavailable" placeholder
+  // If photo is missing, failed to load, or timed out, show clean "Photo unavailable" placeholder
   return (
     <div className="relative w-full h-44 rounded-xl bg-slate-950/80 border border-dashed border-slate-800 flex flex-col items-center justify-center p-4 text-center group-hover:border-slate-700 transition-colors">
       <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center mb-2">

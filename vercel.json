@@ -3,6 +3,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/uploads/:file",
+      "destination": "/api/uploads/:file"
+    },
+    {
       "source": "/((?!api/|uploads/|assets/|favicon.ico).*)",
       "destination": "/index.html"
     }

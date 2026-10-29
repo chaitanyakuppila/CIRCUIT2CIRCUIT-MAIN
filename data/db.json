@@ -132,6 +132,21 @@
       "token": "8cbfc1c49cc5cc4db706e81b1128026b214e593ec2eea7929aba4d1be4ecb6f7",
       "userId": "usr-1793085254979-6425",
       "createdAt": "2026-10-27T07:14:15.432Z"
+    },
+    {
+      "token": "8f3e198aa7fbb0a0f201b8e646caac0917f3534091d72105bd51b22b7d74770e",
+      "userId": "usr-vasavi-01",
+      "createdAt": "2026-10-27T13:39:34.334Z"
+    },
+    {
+      "token": "9d8be4e5246b16faf363938569d0fdb570efce736f1266d60cca54bdb0a894f8",
+      "userId": "usr-vasavi-01",
+      "createdAt": "2026-10-27T13:43:08.558Z"
+    },
+    {
+      "token": "ee908222135cc9621a44501901bb5cd9614e6a7b2e465a64a9e4b0d9d063f1b8",
+      "userId": "usr-vasavi-01",
+      "createdAt": "2026-10-29T05:09:01.891Z"
     }
   ],
   "listings": [
@@ -460,11 +475,11 @@
     },
     {
       "id": "c2c-009",
-      "name": "L298N Dual H-Bridge Motor Driver Module (with 5V Onboard Regulator)",
-      "category": "power_motors",
-      "categoryLabel": "Power & Motors",
+      "name": "HC-SR501 PIR Motion Sensor Module with Adjustable Sensitivity",
+      "category": "sensors",
+      "categoryLabel": "Sensors & Modules",
       "transactionType": "rent",
-      "samplePrice": "₹30 / week (sample)",
+      "samplePrice": "₹30 / week",
       "priceNumeric": 30,
       "condition": "Gently Used (Tested OK)",
       "sellerName": "Tanvi Joshi",
@@ -473,12 +488,12 @@
       "sellerDept": "Mechanical Engineering (MECH)",
       "sellerShareMobile": false,
       "pickupLocation": "Mechatronics Lab 204",
-      "description": "Heavy duty motor driver capable of driving two DC motors or one 4-wire two-phase stepper motor up to 2A per bridge. Large aluminum heat sink already installed.",
+      "description": "Pyroelectric infrared PIR motion detector module with dome lens. Adjustable delay time and sensing distance (3m to 7m). Great for security systems or home automation mini projects.",
       "specs": [
-        "Driver Chip: ST L298N",
-        "Logical Voltage: 5V",
-        "Drive Voltage: 5V - 35V",
-        "Peak Current: 2A per bridge"
+        "Operating Voltage: 5V - 20V DC",
+        "Delay Time: 0.3s - 200s adjustable",
+        "Sensing Angle: < 120°",
+        "3-pin header (VCC, OUT, GND)"
       ],
       "recommendedLabs": [
         "Microcontroller Lab",
@@ -492,11 +507,12 @@
       ],
       "isAvailable": true,
       "dateListed": "4 days ago",
-      "iconType": "motor"
+      "iconType": "sensor",
+      "photoUrl": "/assets/images/pir_sensor_1792860918387.jpg"
     },
     {
       "id": "c2c-010",
-      "name": "16x2 Character LCD Module with Pre-Soldered I2C Serial Backpack",
+      "name": "Capacitive Soil Moisture Sensor Module v1.2 with Probe",
       "category": "sensors",
       "categoryLabel": "Sensors & Modules",
       "transactionType": "donate",
@@ -509,17 +525,17 @@
       "sellerDept": "Computer Science & Engineering (CSE)",
       "sellerShareMobile": false,
       "pickupLocation": "Campus Amphitheatre / Main Lawn",
-      "description": "Giving away to any 2nd year student starting their embedded display lab. I2C adapter saves all your microcontroller pins (needs only SDA and SCL). Blue backlight with contrast trimpot.",
+      "description": "Corrosion resistant capacitive soil moisture probe. Giving away to any junior working on smart agriculture or plant watering automation projects. Analog output voltage 0-3.0V.",
       "specs": [
-        "Display: 16 characters × 2 lines",
-        "I2C Address: 0x27 or 0x3F",
-        "Requires only 4 wires (VCC, GND, SDA, SCL)",
-        "5V operating voltage"
+        "Operating Voltage: 3.3V - 5.5V DC",
+        "Output Voltage: 0 - 3.0 VDC",
+        "Corrosion resistant PCB probe",
+        "Includes 3-pin JST connector wire"
       ],
       "recommendedLabs": [
         "Embedded Systems Lab (2nd/3rd Yr)",
         "Microcontrollers Lab",
-        "Smart Metering Mini Projects"
+        "Smart Agriculture Mini Projects"
       ],
       "targetYears": [
         "2nd Year",
@@ -527,16 +543,17 @@
       ],
       "isAvailable": true,
       "dateListed": "Yesterday",
-      "iconType": "display"
+      "iconType": "sensor",
+      "photoUrl": "/assets/images/soil_moisture_sensor_1792860929432.jpg"
     },
     {
       "id": "c2c-011",
-      "name": "Raspberry Pi Pico RP2040 Board (Header Pins Pre-Soldered)",
-      "category": "microcontrollers",
-      "categoryLabel": "Microcontrollers",
+      "name": "IR Obstacle Avoidance Infrared Sensor Module (3-Pin)",
+      "category": "sensors",
+      "categoryLabel": "Sensors & Modules",
       "transactionType": "sell",
-      "samplePrice": "₹290 (sample example)",
-      "priceNumeric": 290,
+      "samplePrice": "₹45",
+      "priceNumeric": 45,
       "condition": "Like New (1 Lab Session)",
       "sellerName": "Nitin Bharadwaj",
       "sellerRollNumber": "21A81A0490",
@@ -544,17 +561,17 @@
       "sellerDept": "Electronics & Communication Engineering (ECE)",
       "sellerShareMobile": false,
       "pickupLocation": "Advanced Embedded Systems Lab Room 310",
-      "description": "Original Raspberry Pi Pico with dual ARM Cortex-M0+ cores. Pins professionally soldered with clean flux removal so you can plug it straight into breadboards. Flashed with MicroPython firmware.",
+      "description": "Infrared transmitter & receiver diode module with LM393 comparator. Adjustable detection range (2cm - 30cm) via onboard potentiometer. Perfect for line follower or obstacle cars.",
       "specs": [
-        "RP2040 Dual ARM Cortex-M0+ @ 133MHz",
-        "264KB on-chip SRAM / 2MB QSPI Flash",
-        "26 multi-function GPIO pins",
-        "MicroPython & C/C++ SDK compatible"
+        "Detection Angle: 35°",
+        "Operating Voltage: 3.3V - 5V DC",
+        "Onboard LM393 comparator chip",
+        "Active low digital output LED"
       ],
       "recommendedLabs": [
         "Advanced Microprocessors Lab",
         "IoT Design Lab",
-        "Signal Processing Mini Project"
+        "Line Follower Robot Mini Project"
       ],
       "targetYears": [
         "2nd Year",
@@ -563,7 +580,8 @@
       ],
       "isAvailable": true,
       "dateListed": "3 days ago",
-      "iconType": "microcontroller"
+      "iconType": "sensor",
+      "photoUrl": "/assets/images/ir_sensor_1792860930042.jpg"
     },
     {
       "id": "c2c-012",
@@ -691,5 +709,6 @@
       "reason": "Testing student report feature for campus safety",
       "createdAt": "2026-10-24T13:09:29.730Z"
     }
-  ]
+  ],
+  "uploads": {}
 }

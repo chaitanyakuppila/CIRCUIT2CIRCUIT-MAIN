@@ -122,33 +122,35 @@ export const ComponentDetailModal: React.FC<ComponentDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Visual Schematic or Hardware Photo Gallery */}
-        <div className="space-y-2">
-          <HardwareVisual 
-            iconType={item.iconType} 
-            category={item.category} 
-            name={item.name} 
-            photoUrl={item.photoUrl}
-          />
-          {item.photoUrls && item.photoUrls.length > 1 && (
-            <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-thin scrollbar-thumb-slate-800">
-              {item.photoUrls.map((url, idx) => (
-                <img
-                  key={idx}
-                  src={resolveImageUrl(url) || url}
-                  alt={`${item.name} view ${idx + 1}`}
-                  loading="lazy"
-                  decoding="async"
-                  onError={(e) => {
-                    // Hide broken gallery thumbnail gracefully
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
-                  className="w-16 h-16 object-cover rounded-lg border border-slate-800 shrink-0 bg-slate-950"
-                />
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Visual Schematic or Hardware Photo Gallery - Rendered when listing has an actual photo */}
+        {item.photoUrl ? (
+          <div className="space-y-2">
+            <HardwareVisual 
+              iconType={item.iconType} 
+              category={item.category} 
+              name={item.name} 
+              photoUrl={item.photoUrl}
+            />
+            {item.photoUrls && item.photoUrls.length > 1 && (
+              <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-thin scrollbar-thumb-slate-800">
+                {item.photoUrls.map((url, idx) => (
+                  <img
+                    key={idx}
+                    src={resolveImageUrl(url) || url}
+                    alt={`${item.name} view ${idx + 1}`}
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => {
+                      // Hide broken gallery thumbnail gracefully
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                    className="w-16 h-16 object-cover rounded-lg border border-slate-800 shrink-0 bg-slate-950"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {/* Description & Specs Grid */}
         <div className="space-y-4">

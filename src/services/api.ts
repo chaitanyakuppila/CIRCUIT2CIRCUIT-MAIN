@@ -45,13 +45,21 @@ export function resolveImageUrl(url?: string): string | undefined {
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
     return url;
   }
-  let normalizedUrl = url;
+  let normalizedUrl = url.trim();
   if (normalizedUrl.startsWith('/src/assets/images/')) {
     normalizedUrl = normalizedUrl.replace('/src/assets/images/', '/assets/images/');
+  } else if (normalizedUrl.startsWith('src/assets/images/')) {
+    normalizedUrl = normalizedUrl.replace('src/assets/images/', '/assets/images/');
   }
-  if (API_BASE_URL && normalizedUrl.startsWith('/uploads/')) {
+
+  if (!normalizedUrl.startsWith('/') && !normalizedUrl.startsWith('data:')) {
+    normalizedUrl = `/${normalizedUrl}`;
+  }
+
+  if (API_BASE_URL && (normalizedUrl.startsWith('/uploads/') || normalizedUrl.startsWith('/api/uploads/'))) {
     const base = API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL;
-    return `${base}${normalizedUrl}`;
+    const cleanPath = normalizedUrl.startsWith('/api/') ? normalizedUrl.slice(4) : normalizedUrl;
+    return `${base}${cleanPath}`;
   }
   return normalizedUrl;
 }

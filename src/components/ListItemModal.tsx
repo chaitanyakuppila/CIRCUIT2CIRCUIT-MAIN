@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ComponentItem, ComponentCategory, TransactionType, BTechYear, StudentUser } from '../types';
 import { X, PlusCircle, AlertCircle, ShieldCheck, Lock, Info, Upload, Trash2, CheckCircle2, Image as ImageIcon } from 'lucide-react';
 import { validateListingPermissions } from '../utils/validation';
-import { api } from '../services/api';
+import { api, resolveImageUrl } from '../services/api';
 import { SensorAutocomplete } from './SensorAutocomplete';
 
 interface ListItemModalProps {
@@ -195,8 +195,12 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
       const newUrls: string[] = [...photoUrls];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        if (!file.type.startsWith('image/')) {
+          setPhotoError(`"${file.name}" is not an accepted image format. Please select a JPG, PNG, or WebP photo.`);
+          continue;
+        }
         if (file.size > 5 * 1024 * 1024) {
-          setPhotoError(`File "${file.name}" exceeds 5MB limit.`);
+          setPhotoError(`File "${file.name}" exceeds the 5MB campus upload limit.`);
           continue;
         }
 
@@ -414,7 +418,7 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
               <div className="flex flex-wrap gap-3 py-2">
                 {photoUrls.map((url, idx) => (
                   <div key={idx} className="relative w-20 h-20 rounded-xl border border-slate-800 overflow-hidden bg-slate-950 shadow-md group">
-                    <img src={url} alt={`Upload preview ${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={resolveImageUrl(url) || url} alt={`Upload preview ${idx + 1}`} className="w-full h-full object-cover" />
                     <button
                       type="button"
                       onClick={() => handleRemovePhoto(idx)}

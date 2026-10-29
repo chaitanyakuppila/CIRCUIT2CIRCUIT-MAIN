@@ -42,21 +42,25 @@ export const ComponentCard: React.FC<ComponentCardProps> = ({ item, onSelect, on
 
   const badge = getBadgeDetails();
 
+  const hasPhoto = Boolean(item.photoUrl);
+
   return (
     <div 
-      className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between hover:border-violet-500/40 hover:shadow-2xl hover:shadow-violet-950/20 transition-all duration-200 group shadow-lg"
+      className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between h-full hover:border-violet-500/40 hover:shadow-2xl hover:shadow-violet-950/20 transition-all duration-200 group shadow-lg"
     >
-      <div className="space-y-4">
+      <div className="space-y-4 flex-1">
         
-        {/* Hardware Visual Preview */}
-        <div className="cursor-pointer" onClick={() => onSelect(item)}>
-          <HardwareVisual 
-            iconType={item.iconType} 
-            category={item.category} 
-            name={item.name} 
-            photoUrl={item.photoUrl}
-          />
-        </div>
+        {/* Hardware Visual Preview - Only rendered when listing has an actual photo */}
+        {hasPhoto ? (
+          <div className="cursor-pointer" onClick={() => onSelect(item)}>
+            <HardwareVisual 
+              iconType={item.iconType} 
+              category={item.category} 
+              name={item.name} 
+              photoUrl={item.photoUrl}
+            />
+          </div>
+        ) : null}
 
         {/* Transaction Type & Price Header */}
         <div className="flex items-start justify-between gap-2 pt-1">

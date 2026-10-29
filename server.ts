@@ -116,6 +116,7 @@ interface DatabaseSchema {
   conversations: Conversation[];
   messages: ChatMessage[];
   reports: StoredReport[];
+  uploads?: Record<string, string>;
 }
 
 // Password Hashing using Node.js scrypt
@@ -432,7 +433,8 @@ function sanitizeListing(listing: ComponentItem, currentUserId?: string): Compon
     }
   }
 
-  const cleanListing = { ...listing, samplePrice: cleanedPrice, photoUrl };
+  const photoUrls = listing.photoUrls;
+  const cleanListing = { ...listing, samplePrice: cleanedPrice, photoUrl, photoUrls };
 
   // If user is owner or if seller opted in to share mobile publicly, include mobile
   if (cleanListing.sellerShareMobile || (cleanListing.sellerId && cleanListing.sellerId === currentUserId)) {
@@ -490,6 +492,54 @@ export function createApp(): express.Application {
   app.use(express.static(path.join(__dirname, 'public')));
   app.use(authMiddleware);
 
+  // Dynamic serving of student-uploaded images across dev, standalone Node, and serverless runtimes
+  app.get(['/api/uploads/:file', '/uploads/:file'], (req: Request, res: Response) => {
+    const fileName = req.params.file;
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+      return res.status(400).send('Invalid filename.');
+    }
+    const candidates = [
+      path.join(UPLOADS_DIR, fileName),
+      path.join(STATIC_UPLOADS_DIR, fileName),
+      path.join(process.cwd(), 'public', 'uploads', fileName),
+      path.join(process.cwd(), 'dist', 'uploads', fileName),
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        const ext = path.extname(candidate).toLowerCase();
+        let contentType = 'image/jpeg';
+        if (ext === '.png') contentType = 'image/png';
+        else if (ext === '.webp') contentType = 'image/webp';
+        else if (ext === '.gif') contentType = 'image/gif';
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+        return res.sendFile(candidate);
+      }
+    }
+
+    // If not found on disk, restore from persistent database uploads store
+    if (db.uploads && db.uploads[fileName]) {
+      try {
+        const dataUri = db.uploads[fileName];
+        const matches = dataUri.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/i);
+        if (matches) {
+          const contentType = matches[1].toLowerCase();
+          const buffer = Buffer.from(matches[2], 'base64');
+          try {
+            fs.writeFileSync(path.join(UPLOADS_DIR, fileName), buffer);
+          } catch (e) {}
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+          return res.send(buffer);
+        }
+      } catch (err) {
+        console.error('Failed to restore photo from database uploads:', err);
+      }
+    }
+
+    return res.status(404).send('Photo not found');
+  });
+
   // Dedicated API Health Check Endpoint (keeps root / dedicated to the frontend website)
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({
@@ -503,7 +553,7 @@ export function createApp(): express.Application {
   // --- API Endpoints ---
 
   // Upload Photo Endpoint (Base64 / Image file)
-  app.post('/api/upload', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.post(['/api/upload', '/upload'], requireAuth, (req: AuthenticatedRequest, res: Response) => {
     try {
       const { image, filename } = req.body || {};
       if (!image || typeof image !== 'string') {
@@ -511,19 +561,30 @@ export function createApp(): express.Application {
       }
 
       // Match base64 data URI format
-      const matches = image.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/);
+      const matches = image.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/i);
       let buffer: Buffer;
       let ext = 'jpg';
+      let normalizedDataUri = image;
 
       if (matches && matches.length === 3) {
-        const mime = matches[1];
+        const mime = matches[1].toLowerCase();
         if (mime.includes('png')) ext = 'png';
         else if (mime.includes('webp')) ext = 'webp';
         else if (mime.includes('gif')) ext = 'gif';
         buffer = Buffer.from(matches[2], 'base64');
       } else {
-        // Raw base64 string
         buffer = Buffer.from(image, 'base64');
+        // Validate magic bytes for image format
+        if (buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+          ext = 'png';
+        } else if (buffer.length >= 3 && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+          ext = 'jpg';
+        } else if (buffer.length >= 12 && buffer.toString('utf-8', 0, 4) === 'RIFF' && buffer.toString('utf-8', 8, 12) === 'WEBP') {
+          ext = 'webp';
+        } else {
+          return res.status(400).json({ error: 'Invalid image format. Please upload a valid JPG, PNG, or WebP photo.' });
+        }
+        normalizedDataUri = `data:image/${ext};base64,${buffer.toString('base64')}`;
       }
 
       // Check size limit: 5MB max
@@ -534,6 +595,18 @@ export function createApp(): express.Application {
       const fileId = `item_${Date.now()}_${Math.floor(Math.random() * 10000)}.${ext}`;
       const filePath = path.join(UPLOADS_DIR, fileId);
       fs.writeFileSync(filePath, buffer);
+
+      // Also copy to STATIC_UPLOADS_DIR if different and writable
+      if (STATIC_UPLOADS_DIR !== UPLOADS_DIR && fs.existsSync(STATIC_UPLOADS_DIR)) {
+        try {
+          fs.writeFileSync(path.join(STATIC_UPLOADS_DIR, fileId), buffer);
+        } catch (e) {}
+      }
+
+      // Persist to database uploads store so it survives serverless container recycles
+      db.uploads = db.uploads || {};
+      db.uploads[fileId] = normalizedDataUri;
+      saveDatabase();
 
       const photoUrl = `/uploads/${fileId}`;
       return res.status(201).json({
