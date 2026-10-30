@@ -1898,15 +1898,24 @@ export function createApp(): express.Application {
       try {
         await saveNewUser(newUser);
       } catch (saveErr: any) {
-        console.error('Database error saving new user:', saveErr);
+        console.error('Database error saving new user (Registration step):', saveErr);
         return res.status(500).json({
           error: 'Database error saving student account. Please verify database connection settings.',
+          details: saveErr.message
         });
       }
 
       // Create Cryptographic Session Token (Stateless across Vercel serverless containers)
-      const sessionToken = createSignedSessionToken(newUser);
-      await saveSession(sessionToken, newUser.id);
+      try {
+        const sessionToken = createSignedSessionToken(newUser);
+        await saveSession(sessionToken, newUser.id);
+      } catch (sessionErr: any) {
+        console.error('Error creating session during registration:', sessionErr);
+        return res.status(500).json({
+          error: 'Failed to create session.',
+          details: sessionErr.message
+        });
+      }
 
       return res.status(201).json({
         message: `Student account created successfully. Welcome, ${newUser.name}!`,
@@ -1914,8 +1923,11 @@ export function createApp(): express.Application {
         user: sanitizeUser(newUser),
       });
     } catch (err: any) {
-      console.error('Registration failed:', err);
-      return res.status(500).json({ error: 'Account registration failed due to a server error. Please try again.' });
+      console.error('Registration handler caught unhandled exception:', err);
+      return res.status(500).json({ 
+        error: 'Account registration failed due to a server error. Please try again.',
+        details: err.message
+      });
     }
   });
 
@@ -1954,17 +1966,28 @@ export function createApp(): express.Application {
       }
 
       // Issue Cryptographic Session Token (survives container recycling and navigation)
-      const sessionToken = createSignedSessionToken(user);
-      await saveSession(sessionToken, user.id);
+      try {
+        const sessionToken = createSignedSessionToken(user);
+        await saveSession(sessionToken, user.id);
 
-      return res.json({
-        message: `Welcome back, ${user.name}!`,
-        token: sessionToken,
-        user: sanitizeUser(user),
-      });
+        return res.json({
+          message: `Welcome back, ${user.name}!`,
+          token: sessionToken,
+          user: sanitizeUser(user),
+        });
+      } catch (sessionErr: any) {
+        console.error('Error creating session during sign-in:', sessionErr);
+        return res.status(500).json({
+          error: 'Failed to create session.',
+          details: sessionErr.message
+        });
+      }
     } catch (err: any) {
-      console.error('Sign-in failed:', err);
-      return res.status(500).json({ error: 'Sign-in failed due to an internal server error. Please try again.' });
+      console.error('Sign-in handler caught unhandled exception:', err);
+      return res.status(500).json({ 
+        error: 'Sign-in failed due to an internal server error. Please try again.',
+        details: err.message
+      });
     }
   });
 
