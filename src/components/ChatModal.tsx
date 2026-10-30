@@ -20,6 +20,7 @@ import {
 import { Conversation, ChatMessage, ComponentItem, StudentUser } from '../types';
 import { api } from '../services/api';
 import { HardwareVisual } from './HardwareVisual';
+import { CAMPUS_MEETING_LOCATIONS } from '../utils/validation';
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -644,16 +645,20 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                       >
                         Still available?
                       </button>
+                      {CAMPUS_MEETING_LOCATIONS.slice(0, 3).map((loc, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => handleSendQuickPrompt(`📍 Propose meeting location: ${loc}. Does this work for testing & handover?`)}
+                          className="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 whitespace-nowrap cursor-pointer hover:text-white flex items-center gap-1"
+                        >
+                          <MapPin className="w-3 h-3 text-emerald-400" />
+                          <span>Meet at {loc.split('-')[0].trim()}</span>
+                        </button>
+                      ))}
                       <button
                         type="button"
-                        onClick={() => handleSendQuickPrompt('Can we meet at the ECE Department ground floor lobby during lunch break?')}
-                        className="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 whitespace-nowrap cursor-pointer hover:text-white"
-                      >
-                        Meet at ECE block?
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSendQuickPrompt('I will bring my multimeter/laptop to verify 5V power before taking it.')}
+                        onClick={() => handleSendQuickPrompt('I will bring my multimeter & laptop to verify power in the lab.')}
                         className="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700 whitespace-nowrap cursor-pointer hover:text-white"
                       >
                         Bring testing tools

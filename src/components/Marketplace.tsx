@@ -42,6 +42,7 @@ export const Marketplace: React.FC<MarketplaceProps> = ({
 
   const categories = [
     { id: 'all', label: 'All Categories' },
+    { id: 'project_kits', label: '📦 Project Kits' },
     { id: 'microcontrollers', label: 'Microcontrollers' },
     { id: 'sensors', label: 'Sensors & Modules' },
     { id: 'passives', label: 'Passives & ICs' },
@@ -53,6 +54,7 @@ export const Marketplace: React.FC<MarketplaceProps> = ({
     { id: 'all', label: 'All Items' },
     { id: 'rent', label: 'For Rent' },
     { id: 'donate', label: 'Free Donations' },
+    { id: 'swap', label: 'Component Swaps' },
     { id: 'sell', label: 'For Sale' },
   ];
 
@@ -75,14 +77,22 @@ export const Marketplace: React.FC<MarketplaceProps> = ({
         const matchesSpecs = item.specs.some((s) => s.toLowerCase().includes(query));
         const matchesLabs = item.recommendedLabs.some((l) => l.toLowerCase().includes(query));
         const matchesSeller = item.sellerName.toLowerCase().includes(query);
-        if (!matchesName && !matchesDesc && !matchesSpecs && !matchesLabs && !matchesSeller) {
+        const matchesKit = Boolean(
+          item.kitDetails?.partsList?.some((p) => p.name.toLowerCase().includes(query)) ||
+          item.kitDetails?.targetDomain?.toLowerCase().includes(query)
+        );
+        if (!matchesName && !matchesDesc && !matchesSpecs && !matchesLabs && !matchesSeller && !matchesKit) {
           return false;
         }
       }
 
       // Category check
-      if (selectedCategory !== 'all' && item.category !== selectedCategory) {
-        return false;
+      if (selectedCategory !== 'all') {
+        if (selectedCategory === 'project_kits') {
+          if (!item.isProjectKit && item.category !== 'project_kits') return false;
+        } else if (item.category !== selectedCategory) {
+          return false;
+        }
       }
 
       // Transaction type check

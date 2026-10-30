@@ -4,6 +4,7 @@
 
 export const SRI_VASAVI_COLLEGE_NAME = 'Sri Vasavi Engineering College';
 export const SRI_VASAVI_COLLEGE_CODE = 'A8';
+export const OFFICIAL_EMAIL_DOMAIN = 'srivasaviengg.ac.in';
 
 // Configurable branches list for Sri Vasavi Engineering College
 export const DEFAULT_BRANCHES = [
@@ -18,6 +19,51 @@ export const DEFAULT_BRANCHES = [
   'Mechanical Engineering (MECH)',
   'Civil Engineering (CIVIL)',
 ];
+
+// Predefined safe campus meeting locations across Sri Vasavi Engineering College
+export const CAMPUS_MEETING_LOCATIONS = [
+  'Central Library - Ground Floor Discussion Area',
+  'ECE Dept - IoT & Embedded Systems Lab (Block B, 2nd Floor)',
+  'EEE Dept - Electrical Machines & Power Lab (Block C)',
+  'CSE Dept - AI & Project Innovation Lab (Block A, 1st Floor)',
+  'Mechanical Workshop & Fabrication Plaza',
+  'Student Canteen Central Plaza',
+  'Admin Block Student Helpdesk Foyer',
+];
+
+/**
+ * Validates official Sri Vasavi Engineering College email address.
+ * Allowed domain: @srivasaviengg.ac.in
+ * Example: "25a81a4300@srivasaviengg.ac.in" or "praveen.k@srivasaviengg.ac.in"
+ */
+export function validateVasaviEmail(rawEmail: string): { isValid: boolean; normalized: string; error?: string } {
+  if (!rawEmail || typeof rawEmail !== 'string') {
+    return { isValid: false, normalized: '', error: 'Official college email is required.' };
+  }
+
+  const normalized = rawEmail.trim().toLowerCase();
+
+  // Basic email pattern check
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(normalized)) {
+    return {
+      isValid: false,
+      normalized,
+      error: 'Please enter a valid email address format (e.g., 25a81a4300@srivasaviengg.ac.in).'
+    };
+  }
+
+  // Strict domain enforcement: must end with @srivasaviengg.ac.in
+  if (!normalized.endsWith(`@${OFFICIAL_EMAIL_DOMAIN}`)) {
+    return {
+      isValid: false,
+      normalized,
+      error: `Registration is restricted to verified Sri Vasavi Engineering College students. Email must end with @${OFFICIAL_EMAIL_DOMAIN}.`
+    };
+  }
+
+  return { isValid: true, normalized };
+}
 
 /**
  * Validates Sri Vasavi Engineering College roll number format.
@@ -41,9 +87,9 @@ export function validateVasaviRollNumber(rawRoll: string): { isValid: boolean; n
   }
 
   // Regex checks:
-  // ^\d{2}   -> 2 digits admission year (e.g. 21, 22, 23, 24, 25, 26)
-  // A8       -> Sri Vasavi Engineering College code
-  // (1A|5A)  -> 1A for regular B.Tech admission, 5A for lateral entry
+  // ^\d{2}      -> 2 digits admission year (e.g. 21, 22, 23, 24, 25, 26)
+  // A8          -> Sri Vasavi Engineering College code
+  // (1A|5A)     -> 1A for regular B.Tech admission, 5A for lateral entry
   // [0-9A-Z]{2} -> 2 char branch code
   // [0-9A-Z]{2} -> 2 char sequence code
   const rollRegex = /^[0-9]{2}A8(1A|5A)[0-9A-Z]{2}[0-9A-Z]{2}$/;
@@ -124,45 +170,45 @@ export function validatePassword(password: string): { isValid: boolean; error?: 
 
 /**
  * Enforces Circuit2Circuit Marketplace Rules based on student BTech year:
- * - 1st-, 2nd-, and 3rd-year students can request to rent or buy items, or ask about donations.
- * - 2nd- and 3rd-year students can list items for rent.
- * - 4th-year students can list items for sale.
+ * - 1st-, 2nd-, and 3rd-year students can request to rent or buy items, or ask about donations/swaps.
+ * - 2nd- and 3rd-year students can list items for rent or swap.
+ * - 4th-year students (graduating seniors) can list items for sale, swap, or donation.
  * - 2nd-, 3rd-, and 4th-year students can list donations.
  */
 export function validateListingPermissions(
   studentYear: string,
-  transactionType: 'rent' | 'sell' | 'donate'
+  transactionType: 'rent' | 'sell' | 'donate' | 'swap'
 ): { isAllowed: boolean; message: string } {
   const year = studentYear.trim();
 
-  // 1st Year rule: Cannot list
+  // 1st Year rule: Cannot list items
   if (year === '1st Year') {
     return {
       isAllowed: false,
-      message: '1st-year students can browse, rent, buy, and request donations. Per marketplace rules, listing items is reserved for 2nd & 3rd years (rent/donate) and 4th years (sale/donate).'
+      message: '1st-year students can browse, rent, buy, swap, and request donations. Listing items is reserved for 2nd & 3rd years (rent/swap/donate) and 4th years (sale/swap/donate).'
     };
   }
 
-  // 2nd & 3rd Year rule: Can list rent or donate (cannot list sale)
+  // 2nd & 3rd Year rule: Can list rent, swap, or donate (cannot list sale)
   if (year === '2nd Year' || year === '3rd Year') {
     if (transactionType === 'sell') {
       return {
         isAllowed: false,
-        message: 'Only 4th-year graduating seniors are permitted to list electronics for sale. 2nd- and 3rd-year students can list items for Rent or as Free Donations.'
+        message: 'Only 4th-year graduating seniors are permitted to list surplus electronics for direct sale. 2nd- and 3rd-year students can list items for Rent, Component Swap, or as Free Donations.'
       };
     }
-    return { isAllowed: true, message: 'Eligible to list for rent or donation.' };
+    return { isAllowed: true, message: 'Eligible to list for rent, swap, or donation.' };
   }
 
-  // 4th Year rule: Can list sale or donate (cannot list rent)
+  // 4th Year rule: Can list sale, swap, or donate (cannot list rent)
   if (year === '4th Year') {
     if (transactionType === 'rent') {
       return {
         isAllowed: false,
-        message: '4th-year seniors list project electronics for Sale or Free Donation before graduation. Rentals are managed by 2nd- and 3rd-year students for semester labs.'
+        message: '4th-year graduating seniors list completed capstone project electronics for Sale, Swap, or Free Donation before graduation. Semester lab rentals are managed by 2nd- and 3rd-year students.'
       };
     }
-    return { isAllowed: true, message: 'Eligible to list for sale or donation.' };
+    return { isAllowed: true, message: 'Eligible to list for sale, swap, or donation.' };
   }
 
   return { isAllowed: false, message: 'Please select a valid BTech year to list items.' };
@@ -170,23 +216,16 @@ export function validateListingPermissions(
 
 /**
  * Enforces requesting rules:
- * - 1st-, 2nd-, and 3rd-year students can request to rent or buy items, or ask about donations.
+ * - 1st-, 2nd-, 3rd-, and 4th-year students can coordinate component handovers.
  */
 export function validateRequestPermissions(
   studentYear: string,
-  transactionType: 'rent' | 'sell' | 'donate'
+  transactionType: 'rent' | 'sell' | 'donate' | 'swap'
 ): { isAllowed: boolean; message: string } {
   const year = studentYear.trim();
 
-  if (year === '1st Year' || year === '2nd Year' || year === '3rd Year') {
-    return { isAllowed: true, message: 'Eligible to request component.' };
-  }
-
-  if (year === '4th Year') {
-    return {
-      isAllowed: true,
-      message: '4th-year seniors primarily list capstones, but can coordinate handovers for peer hardware.'
-    };
+  if (['1st Year', '2nd Year', '3rd Year', '4th Year'].includes(year)) {
+    return { isAllowed: true, message: 'Eligible to request component handover.' };
   }
 
   return { isAllowed: false, message: 'Please ensure you are signed in as an active BTech student.' };

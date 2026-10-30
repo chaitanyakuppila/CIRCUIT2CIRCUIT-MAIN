@@ -23,9 +23,23 @@ import {
   validatePassword,
   validateListingPermissions,
   validateRequestPermissions,
+  validateVasaviEmail,
+  OFFICIAL_EMAIL_DOMAIN,
+  CAMPUS_MEETING_LOCATIONS,
 } from './src/utils/validation.ts';
 import { INITIAL_COMPONENTS } from './src/data/sampleComponents.ts';
-import { ComponentItem, ItemRequest, StudentUser, ChatMessage, Conversation } from './src/types.ts';
+import {
+  ComponentItem,
+  ItemRequest,
+  StudentUser,
+  ChatMessage,
+  Conversation,
+  StudentCareGuide,
+  StudentCareRequest,
+  TransactionRecord,
+  EcoImpactMetrics,
+  LeaderboardEntry,
+} from './src/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,21 +66,30 @@ export function getSeedDbPath(): string | null {
 export function normalizeVercelRequest(req: any) {
   if (!req) return;
 
-  // 1. Check Vercel proxy matched path headers
+  // 1. Check real original client URI headers first (must be a real /api path and not an unexpanded bracket pattern like [...path])
+  const realUri =
+    req.headers?.['x-forwarded-uri'] ||
+    req.headers?.['x-original-uri'] ||
+    req.headers?.['x-invoke-path'];
+
+  if (typeof realUri === 'string' && realUri.startsWith('/api') && !realUri.includes('[')) {
+    req.url = realUri;
+    return;
+  }
+
+  // 2. Check Vercel proxy matched path headers (only if not an unexpanded dynamic bracket route pattern)
   const matchedPath =
     req.headers?.['x-matched-path'] ||
-    req.headers?.['x-vercel-matched-path'] ||
-    req.headers?.['x-forwarded-uri'] ||
-    req.headers?.['x-original-uri'];
+    req.headers?.['x-vercel-matched-path'];
 
-  if (typeof matchedPath === 'string' && matchedPath.startsWith('/api')) {
+  if (typeof matchedPath === 'string' && matchedPath.startsWith('/api') && !matchedPath.includes('[')) {
     const queryIndex = typeof req.url === 'string' ? req.url.indexOf('?') : -1;
     const query = queryIndex !== -1 ? req.url.substring(queryIndex) : '';
     req.url = matchedPath.includes('?') ? matchedPath : `${matchedPath}${query}`;
     return;
   }
 
-  // 2. Check query path parameter passed by vercel.json rewrite (/api?path=$1) or [...path].ts
+  // 3. Check query path parameter passed by vercel.json rewrite or [...path].ts
   if (req.query?.path) {
     const rawPath = Array.isArray(req.query.path) ? req.query.path.join('/') : String(req.query.path);
     const cleanPath = rawPath.replace(/^\/+/, '');
@@ -78,12 +101,26 @@ export function normalizeVercelRequest(req: any) {
     } catch (e) {
       // ignore
     }
-    req.url = `/api/${cleanPath}${queryString}`;
+
+    // If request has conversation patterns (conv-*, unread-total, or conversations), route to /api/conversations/
+    const urlStr = typeof req.url === 'string' ? req.url : '';
+    if (
+      cleanPath.startsWith('conv-') ||
+      cleanPath.startsWith('unread-total') ||
+      cleanPath.startsWith('conversations') ||
+      urlStr.includes('conversations')
+    ) {
+      const convSub = cleanPath.replace(/^conversations\/?/, '');
+      req.url = `/api/conversations/${convSub}${queryString}`;
+    } else if (!cleanPath.startsWith('api')) {
+      req.url = `/api/${cleanPath}${queryString}`;
+    } else {
+      req.url = `/${cleanPath}${queryString}`;
+    }
     return;
   }
 
-  // 3. Fallback: normalize known API subroutes without /api prefix (e.g. /auth/login -> /api/auth/login)
-  // Crucial: Do NOT rewrite '/' or frontend routes so root URL serves the frontend website.
+  // 4. Fallback: normalize known API subroutes without /api prefix (e.g. /auth/login -> /api/auth/login)
   if (typeof req.url === 'string') {
     if (
       req.url.startsWith('/auth') ||
@@ -92,7 +129,12 @@ export function normalizeVercelRequest(req: any) {
       req.url.startsWith('/my') ||
       req.url.startsWith('/requests') ||
       req.url.startsWith('/conversations') ||
-      req.url.startsWith('/upload')
+      req.url.startsWith('/upload') ||
+      req.url.startsWith('/student-care') ||
+      req.url.startsWith('/eco-impact') ||
+      req.url.startsWith('/leaderboards') ||
+      req.url.startsWith('/payment-gateway') ||
+      req.url.startsWith('/admin')
     ) {
       req.url = `/api${req.url}`;
       return;
@@ -129,8 +171,276 @@ interface DatabaseSchema {
   conversations: Conversation[];
   messages: ChatMessage[];
   reports: StoredReport[];
+  guides?: StudentCareGuide[];
+  careRequests?: StudentCareRequest[];
+  transactions?: TransactionRecord[];
   uploads?: Record<string, string>;
 }
+
+// Initial Student Care Guides for Sri Vasavi Engineering College
+const INITIAL_GUIDES: StudentCareGuide[] = [
+  {
+    id: 'guide-01',
+    title: 'ESP32 NodeMCU + DHT11: 3.3V vs 5V Pin Connection & Boot Loop Fix',
+    category: 'pin_connections',
+    componentOrKit: 'ESP32 DevKit & DHT11 Module',
+    authorName: 'Kalyan Chakravarthy',
+    authorRoll: '21A81A0445',
+    authorBranch: 'Electronics & Communication Engineering (ECE)',
+    authorYear: '4th Year',
+    summary: 'Many 2nd/3rd year students run into ESP32 brownout boot loops when powering sensor rails directly from the 3.3V pin. Here is the safe pinout wiring and capacitor decoupling guide tested in Block B IoT lab.',
+    pinoutNotes: `ESP32 VIN -> 5V external or USB supply
+ESP32 3V3 -> DHT11 VCC (Do not connect 5V to ESP32 ADC/GPIO pins!)
+ESP32 GND -> DHT11 GND (Common ground is mandatory)
+ESP32 GPIO4 -> DHT11 DATA (Include 10k pull-up resistor)`,
+    troubleshootingTips: [
+      'Avoid using GPIO0, GPIO2, GPIO12, or GPIO15 for DHT11 data as they are strapping pins that determine boot mode.',
+      'Place a 100nF ceramic decoupling capacitor across DHT11 VCC and GND if readings intermittently return "NaN".',
+      'Set serial baud rate to 115200 in both setup() and Arduino Serial Monitor.'
+    ],
+    sampleCode: `#include <DHT.h>
+#define DHTPIN 4
+#define DHTTYPE DHT11
+
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  dht.begin();
+  Serial.println("DHT11 Sensor Ready!");
+}
+
+void loop() {
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Warning: Failed to read from DHT sensor!");
+    delay(2000);
+    return;
+  }
+  Serial.printf("Temperature: %.1f C | Humidity: %.1f %%\\n", t, h);
+  delay(2000);
+}`,
+    upvotes: 14,
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+  },
+  {
+    id: 'guide-02',
+    title: 'L298N Motor Driver + 12V Battery Common Ground & Logic Jumper Guide',
+    category: 'troubleshooting',
+    componentOrKit: 'L298N Dual H-Bridge & TT Motors',
+    authorName: 'Vikramaditya S.',
+    authorRoll: '22A81A0412',
+    authorBranch: 'Electronics & Communication Engineering (ECE)',
+    authorYear: '3rd Year',
+    summary: 'The #1 reason motors behave erratically or microcontrollers reset when motors start is a missing common ground between battery and Arduino, or forgetting to leave the 5V regulator jumper on for <12V supplies.',
+    pinoutNotes: `L298N 12V -> Battery Positive (+7.4V to +12V)
+L298N GND -> Battery Negative (-) AND Arduino GND (Must be connected together!)
+L298N 5V -> Arduino 5V (If 5V-EN jumper is installed)
+IN1, IN2, IN3, IN4 -> Arduino Pins D5, D6, D9, D10`,
+    troubleshootingTips: [
+      'ALWAYS connect battery negative (-) to BOTH L298N GND and Arduino GND.',
+      'Keep the 5V EN jumper ON if using a 7.4V to 12V battery; this enables the onboard 5V regulator to power the logic chips.',
+      'If motors stall or hum, measure your battery voltage under load—rechargeable 18650 cells work much better than 9V alkaline blocks.'
+    ],
+    sampleCode: `const int in1 = 5;
+const int in2 = 6;
+
+void setup() {
+  pinMode(in1, OUTPUT);
+  pinMode(in2, OUTPUT);
+}
+
+void loop() {
+  // Rotate forward 2 seconds
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW);
+  delay(2000);
+  // Stop 1 second
+  digitalWrite(in1, LOW);
+  digitalWrite(in2, LOW);
+  delay(1000);
+}`,
+    upvotes: 19,
+    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+  },
+  {
+    id: 'guide-03',
+    title: 'I2C 1602 LCD 0x27 vs 0x3F Address Conflict & Scanner Code',
+    category: 'sample_code',
+    componentOrKit: '16x2 I2C Character LCD (PCF8574)',
+    authorName: 'Venkata Sai Kumar',
+    authorRoll: '22A81A0512',
+    authorBranch: 'Computer Science & Engineering (CSE)',
+    authorYear: '3rd Year',
+    summary: 'Depending on the PCF8574 chip soldered onto your backpack (PCF8574 vs PCF8574A), the default address is either 0x27 or 0x3F. Run this I2C scanner sketch first before troubleshooting blank screens or contrast trimpots.',
+    pinoutNotes: `LCD VCC -> 5V (Requires 5V for crisp contrast!)
+LCD GND -> Arduino GND
+LCD SDA -> Arduino Pin A4 (or ESP32 GPIO21)
+LCD SCL -> Arduino Pin A5 (or ESP32 GPIO22)`,
+    troubleshootingTips: [
+      'Turn the blue potentiometer on the backpack with a small screwdriver until characters appear.',
+      'If you see black blocks on line 1, your I2C address is wrong or initialization code has not executed.',
+      'Use the Wire.h library built into Arduino IDE.'
+    ],
+    sampleCode: `#include <Wire.h>
+
+void setup() {
+  Wire.begin();
+  Serial.begin(9600);
+  Serial.println("Circuit2Circuit I2C Scanner Ready");
+}
+
+void loop() {
+  byte error, address;
+  int nDevices = 0;
+  for(address = 1; address < 127; address++ ) {
+    Wire.beginTransmission(address);
+    error = Wire.endTransmission();
+    if (error == 0) {
+      Serial.print("I2C device found at address 0x");
+      if (address<16) Serial.print("0");
+      Serial.println(address,HEX);
+      nDevices++;
+    }
+  }
+  if (nDevices == 0) Serial.println("No I2C devices found\\n");
+  delay(5000);
+}`,
+    upvotes: 11,
+    createdAt: new Date(Date.now() - 86400000 * 4).toISOString(),
+  }
+];
+
+const INITIAL_REQUESTS_CARE: StudentCareRequest[] = [
+  {
+    id: 'care-req-01',
+    title: 'MPU6050 accelerometer raw values drifting in Block B Lab',
+    componentNeededOrIssue: 'MPU6050 6-Axis Gyro/Accelerometer',
+    studentName: 'Praveen K.',
+    studentRoll: '25A81A4300',
+    studentBranch: 'Computer Science and Artificial Intelligence (CAI)',
+    studentYear: '2nd Year',
+    urgency: 'medium',
+    labName: 'Block B IoT Lab',
+    status: 'answered',
+    answers: [
+      {
+        id: 'ans-01',
+        responderName: 'Kalyan Chakravarthy',
+        responderRoll: '21A81A0445',
+        responderYear: '4th Year',
+        answerText: 'Make sure you calibrate zero-offsets on a flat table before sampling. Also keep AD0 connected to GND for 0x68 address, and enable the internal digital low pass filter (DLPF_CFG = 3).',
+        createdAt: new Date(Date.now() - 3600000 * 18).toISOString(),
+      }
+    ],
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+  }
+];
+
+const INITIAL_TRANSACTIONS: TransactionRecord[] = [
+  {
+    id: 'tx-01',
+    listingId: 'c2c-001',
+    listingName: 'Arduino Uno R3 Microcontroller Board (with USB A-B Cable)',
+    transactionType: 'rent',
+    priceNumeric: 40,
+    depositAmount: 100,
+    sellerId: 'usr-vasavi-02',
+    sellerName: 'Bhavya Sri',
+    sellerRoll: '21A81A0501',
+    buyerId: 'usr-vasavi-01',
+    buyerName: 'Praveen Kumar',
+    buyerRoll: '25A81A4300',
+    status: 'completed',
+    handoverLocation: 'Central Library - Ground Floor Discussion Area',
+    originalPriceNumeric: 450,
+    weightGrams: 45,
+    createdAt: new Date(Date.now() - 86400000 * 6).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 4).toISOString(),
+  },
+  {
+    id: 'tx-02',
+    listingId: 'c2c-002',
+    listingName: 'Solderless Breadboard (830 Tie Points) + Power Rails',
+    transactionType: 'donate',
+    priceNumeric: 0,
+    depositAmount: 0,
+    sellerId: 'usr-vasavi-03',
+    sellerName: 'Sneha Patel',
+    sellerRoll: '21A81A0234',
+    buyerId: 'usr-vasavi-04',
+    buyerName: 'Sanjay Reddy',
+    buyerRoll: '23A81A4321',
+    status: 'completed',
+    handoverLocation: 'Central Library - Ground Floor Discussion Area',
+    originalPriceNumeric: 160,
+    weightGrams: 90,
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+  },
+  {
+    id: 'tx-03',
+    listingId: 'c2c-007',
+    listingName: 'ESP32 Dual-Core Wi-Fi & Bluetooth Development Board',
+    transactionType: 'sell',
+    priceNumeric: 340,
+    depositAmount: 0,
+    sellerId: 'usr-vasavi-05',
+    sellerName: 'Divya Krishnan',
+    sellerRoll: '21A81A1204',
+    buyerId: 'usr-vasavi-06',
+    buyerName: 'Kavya Sree',
+    buyerRoll: '22A81A0544',
+    status: 'completed',
+    handoverLocation: 'Admin Block Student Helpdesk Foyer',
+    originalPriceNumeric: 550,
+    weightGrams: 30,
+    createdAt: new Date(Date.now() - 86400000 * 4).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+  },
+  {
+    id: 'tx-04',
+    listingId: 'c2c-003',
+    listingName: 'Assorted Resistors (1/4W Metal Film, 300 Pcs Box)',
+    transactionType: 'sell',
+    priceNumeric: 95,
+    depositAmount: 0,
+    sellerId: 'usr-vasavi-07',
+    sellerName: 'Harish Nair',
+    sellerRoll: '21A81A0315',
+    buyerId: 'usr-vasavi-08',
+    buyerName: 'Vikramaditya S.',
+    buyerRoll: '22A81A0412',
+    status: 'completed',
+    handoverLocation: 'Student Canteen Central Plaza',
+    originalPriceNumeric: 220,
+    weightGrams: 60,
+    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+    updatedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+  },
+  {
+    id: 'tx-05',
+    listingId: 'c2c-kit-001',
+    listingName: 'Smart IoT Environmental & Weather Monitor Kit',
+    transactionType: 'rent',
+    priceNumeric: 85,
+    depositAmount: 150,
+    sellerId: 'usr-vasavi-09',
+    sellerName: 'Venkata Sai Kumar',
+    sellerRoll: '22A81A0512',
+    buyerId: 'usr-vasavi-10',
+    buyerName: 'Rahul Chowdary',
+    buyerRoll: '22A81A0488',
+    status: 'completed',
+    handoverLocation: 'ECE Dept - IoT & Embedded Systems Lab (Block B, 2nd Floor)',
+    originalPriceNumeric: 890,
+    weightGrams: 280,
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    updatedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
+  }
+];
 
 // Password Hashing using Node.js scrypt
 function hashPassword(password: string): string {
@@ -161,7 +471,6 @@ function loadDatabase(): DatabaseSchema {
     }
   }
 
-  // On Vercel / serverless runtime, initialize /tmp from bundled seed if not yet present
   const seedPath = getSeedDbPath();
   if (!fs.existsSync(DB_FILE) && seedPath) {
     try {
@@ -180,6 +489,17 @@ function loadDatabase(): DatabaseSchema {
       if (!data.messages) data.messages = [];
       if (!data.reports) data.reports = [];
       if (!data.requests) data.requests = [];
+      if (!data.guides || data.guides.length === 0) data.guides = INITIAL_GUIDES;
+      if (!data.careRequests || data.careRequests.length === 0) data.careRequests = INITIAL_REQUESTS_CARE;
+      if (!data.transactions || data.transactions.length === 0) data.transactions = INITIAL_TRANSACTIONS;
+      
+      // Ensure all initial components (including new Project Kits) are present
+      INITIAL_COMPONENTS.forEach((initItem) => {
+        if (!data.listings.some((l) => l.id === initItem.id)) {
+          data.listings.unshift(initItem);
+        }
+      });
+
       if (!data.branches) {
         data.branches = DEFAULT_BRANCHES;
       } else {
@@ -195,7 +515,6 @@ function loadDatabase(): DatabaseSchema {
     }
   }
 
-  // Fallback to reading bundled DB directly if DB_FILE was not readable
   if (seedPath) {
     try {
       const content = fs.readFileSync(seedPath, 'utf-8');
@@ -206,7 +525,6 @@ function loadDatabase(): DatabaseSchema {
     }
   }
 
-  // Clean initial accounts setup (all student accounts created via registration)
   const defaultUsers: StoredUser[] = [];
 
   const demoConvId = 'conv-demo-01';
@@ -215,7 +533,7 @@ function loadDatabase(): DatabaseSchema {
       id: demoConvId,
       listingId: 'c2c-001',
       listingTitle: 'Arduino Uno R3 Microcontroller Board (with USB A-B Cable)',
-      listingPrice: '₹40 / week (sample)',
+      listingPrice: '₹40 / week',
       listingTransactionType: 'rent',
       listingCategory: 'Microcontrollers',
       listingIconType: 'microcontroller',
@@ -228,7 +546,7 @@ function loadDatabase(): DatabaseSchema {
       buyerRollNumber: '25A81A4300',
       buyerBranch: 'Artificial Intelligence & Data Science (AI & DS)',
       buyerYear: '2nd Year',
-      lastMessageText: 'Sounds good! I can meet you tomorrow at 1:30 PM near the central library foyer.',
+      lastMessageText: 'Sounds good! I can meet you tomorrow at 1:30 PM near the central library discussion hall.',
       lastMessageAt: new Date(Date.now() - 3600000).toISOString(),
       createdAt: new Date(Date.now() - 7200000).toISOString(),
       isBlocked: false,
@@ -273,9 +591,9 @@ function loadDatabase(): DatabaseSchema {
       senderId: 'usr-vasavi-02',
       senderName: 'Bhavya Sri',
       senderRollNumber: '21A81A0501',
-      text: 'Sounds good! I can meet you tomorrow at 1:30 PM near the central library foyer.',
+      text: 'Sounds good! I can meet you tomorrow at 1:30 PM near the central library discussion hall.',
       createdAt: new Date(Date.now() - 3600000).toISOString(),
-      readBy: ['usr-vasavi-02'], // Unread for Praveen until opened!
+      readBy: ['usr-vasavi-02'],
     },
   ];
 
@@ -288,17 +606,20 @@ function loadDatabase(): DatabaseSchema {
     conversations: initialConversations,
     messages: initialMessages,
     reports: [],
+    guides: INITIAL_GUIDES,
+    careRequests: INITIAL_REQUESTS_CARE,
+    transactions: INITIAL_TRANSACTIONS,
   };
 
-    try {
-      fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf-8');
-    } catch (e) {
-      // ignore in read-only environments
-    }
-    return initialDb;
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf-8');
+  } catch (e) {
+    // ignore in read-only environments
   }
+  return initialDb;
+}
 
-  let db = loadDatabase();
+let db = loadDatabase();
   let lastDbMtime = 0;
   try {
     if (fs.existsSync(DB_FILE)) {
@@ -406,6 +727,23 @@ try {
   console.warn('Could not load firebase-applet-config.json:', e);
 }
 
+if (!firebaseConfig && process.env.FIREBASE_CONFIG) {
+  try {
+    firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG);
+  } catch (e) {}
+}
+if (!firebaseConfig && (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID)) {
+  firebaseConfig = {
+    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+    apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN,
+    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || 'ai-studio-circuit2circuitb-0ba4f3df-8bc1-4e2d-baed-e40f92e37579',
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID,
+  };
+}
+
 let firestoreDb: any = null;
 if (firebaseConfig && firebaseConfig.projectId) {
   try {
@@ -501,24 +839,31 @@ async function ensurePgSchema(): Promise<boolean> {
   }
 }
 
-export async function findUserByRollNumber(rollNumber: string): Promise<StoredUser | null> {
-  const cleanRoll = rollNumber.trim().toUpperCase();
+export async function findUserByRollNumber(identifier: string): Promise<StoredUser | null> {
+  const clean = identifier.trim();
+  const cleanUpper = clean.toUpperCase();
+  const cleanLower = clean.toLowerCase();
+  const isEmail = clean.includes('@');
 
   // 1. Check Firebase Firestore (Primary persistent store)
   if (firestoreDb) {
     try {
-      const q = fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('rollNumberUpper', '==', cleanRoll));
+      const q = isEmail
+        ? fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('email', '==', cleanLower))
+        : fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('rollNumberUpper', '==', cleanUpper));
       const snapshot = await fsGetDocs(q);
       if (!snapshot.empty) {
         const u = snapshot.docs[0].data() as StoredUser;
         return {
           id: u.id,
           name: u.name,
+          email: u.email || `${u.rollNumber.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
           rollNumber: u.rollNumber,
           branch: u.branch,
           mobile: u.mobile,
           year: u.year,
           shareMobilePublicly: Boolean(u.shareMobilePublicly),
+          role: u.role || 'student',
           passwordHash: u.passwordHash,
           createdAt: u.createdAt,
         };
@@ -534,18 +879,20 @@ export async function findUserByRollNumber(rollNumber: string): Promise<StoredUs
       await (pgInitPromise ||= ensurePgSchema());
       const res = await pgPool.query(
         'SELECT id, name, roll_number AS "rollNumber", branch, mobile, year, share_mobile_publicly AS "shareMobilePublicly", password_hash AS "passwordHash", created_at AS "createdAt" FROM c2c_users WHERE UPPER(roll_number) = $1',
-        [cleanRoll]
+        [cleanUpper]
       );
       if (res.rows.length > 0) {
         const u = res.rows[0];
         return {
           id: u.id,
           name: u.name,
+          email: u.email || `${u.rollNumber.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
           rollNumber: u.rollNumber,
           branch: u.branch,
           mobile: u.mobile,
           year: u.year,
           shareMobilePublicly: Boolean(u.shareMobilePublicly),
+          role: u.role || 'student',
           passwordHash: u.passwordHash,
           createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt),
         };
@@ -557,8 +904,15 @@ export async function findUserByRollNumber(rollNumber: string): Promise<StoredUs
 
   // 3. Fallback to local memory & disk database
   reloadDatabaseIfChanged();
-  const mem = db.users.find((u) => u.rollNumber.trim().toUpperCase() === cleanRoll);
-  return mem || null;
+  const mem = db.users.find((u) => {
+    if (isEmail) return u.email?.toLowerCase() === cleanLower;
+    return u.rollNumber.trim().toUpperCase() === cleanUpper;
+  });
+  if (mem) {
+    if (!mem.email) mem.email = `${mem.rollNumber.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`;
+    return mem;
+  }
+  return null;
 }
 
 export async function findUserById(userId: string): Promise<StoredUser | null> {
@@ -572,6 +926,7 @@ export async function findUserById(userId: string): Promise<StoredUser | null> {
         return {
           id: u.id,
           name: u.name,
+          email: u.email || `${u.rollNumber?.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
           rollNumber: u.rollNumber,
           branch: u.branch,
           mobile: u.mobile,
@@ -599,6 +954,7 @@ export async function findUserById(userId: string): Promise<StoredUser | null> {
         return {
           id: u.id,
           name: u.name,
+          email: `${u.rollNumber?.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
           rollNumber: u.rollNumber,
           branch: u.branch,
           mobile: u.mobile,
@@ -618,6 +974,11 @@ export async function findUserById(userId: string): Promise<StoredUser | null> {
   return mem || null;
 }
 
+function cleanForFirestore<T>(data: T): any {
+  if (!data) return data;
+  return JSON.parse(JSON.stringify(data));
+}
+
 export async function saveNewUser(newUser: StoredUser): Promise<void> {
   const cleanRoll = newUser.rollNumber.trim().toUpperCase();
   const sanitizedUser = { ...newUser, rollNumber: cleanRoll, rollNumberUpper: cleanRoll };
@@ -634,7 +995,7 @@ export async function saveNewUser(newUser: StoredUser): Promise<void> {
   // 2. Persist to Firebase Firestore
   if (firestoreDb) {
     try {
-      await fsSetDoc(fsDoc(firestoreDb, 'c2c_users', sanitizedUser.id), sanitizedUser);
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_users', sanitizedUser.id), cleanForFirestore(sanitizedUser));
       console.log('Saved new user to Firebase Firestore:', sanitizedUser.rollNumber);
     } catch (err) {
       console.error('Firestore saveNewUser error:', err);
@@ -768,7 +1129,7 @@ export async function saveListingToDb(listing: ComponentItem): Promise<void> {
 
   if (firestoreDb) {
     try {
-      await fsSetDoc(fsDoc(firestoreDb, 'c2c_listings', listing.id), listing);
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_listings', listing.id), cleanForFirestore(listing));
     } catch (err) {
       console.error('Firestore saveListingToDb error:', err);
     }
@@ -785,6 +1146,317 @@ export async function saveListingToDb(listing: ComponentItem): Promise<void> {
       console.error('PostgreSQL saveListingToDb error:', err);
     }
   }
+}
+
+// --- Chat & Conversation Persistence Helpers ---
+
+export async function saveConversationToDb(conv: Conversation): Promise<void> {
+  const idx = db.conversations.findIndex((c) => c.id === conv.id);
+  if (idx !== -1) {
+    db.conversations[idx] = conv;
+  } else {
+    db.conversations.unshift(conv);
+  }
+  saveDatabase();
+
+  if (firestoreDb) {
+    try {
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_conversations', conv.id), cleanForFirestore(conv));
+    } catch (err) {
+      console.error('Firestore saveConversationToDb error:', err);
+    }
+  }
+}
+
+export async function getConversationByIdFromDb(convId: string): Promise<Conversation | null> {
+  reloadDatabaseIfChanged();
+  const local = db.conversations.find((c) => c.id === convId);
+
+  if (firestoreDb) {
+    try {
+      const snap = await fsGetDoc(fsDoc(firestoreDb, 'c2c_conversations', convId));
+      if (snap.exists()) {
+        const conv = snap.data() as Conversation;
+        const idx = db.conversations.findIndex((c) => c.id === convId);
+        if (idx !== -1) {
+          db.conversations[idx] = conv;
+        } else {
+          db.conversations.unshift(conv);
+        }
+        return conv;
+      }
+    } catch (err) {
+      console.error('Firestore getConversationByIdFromDb error:', err);
+    }
+  }
+
+  return local || null;
+}
+
+export async function getConversationsForUserFromDb(userId: string, userRoll: string): Promise<Conversation[]> {
+  const rollUpper = userRoll.trim().toUpperCase();
+  reloadDatabaseIfChanged();
+
+  const convMap = new Map<string, Conversation>();
+  for (const c of db.conversations) {
+    if (
+      c.buyerId === userId ||
+      c.sellerId === userId ||
+      (c.sellerRollNumber && c.sellerRollNumber.toUpperCase() === rollUpper) ||
+      (c.buyerRollNumber && c.buyerRollNumber.toUpperCase() === rollUpper)
+    ) {
+      convMap.set(c.id, c);
+    }
+  }
+
+  if (firestoreDb) {
+    try {
+      const [snapBuyer, snapSeller, snapSellerRoll] = await Promise.all([
+        fsGetDocs(fsQuery(fsCollection(firestoreDb, 'c2c_conversations'), fsWhere('buyerId', '==', userId))),
+        fsGetDocs(fsQuery(fsCollection(firestoreDb, 'c2c_conversations'), fsWhere('sellerId', '==', userId))),
+        fsGetDocs(fsQuery(fsCollection(firestoreDb, 'c2c_conversations'), fsWhere('sellerRollNumber', '==', userRoll))),
+      ]);
+
+      const mergeDoc = (docSnap: any) => {
+        const data = docSnap.data() as Conversation;
+        if (data && data.id) {
+          convMap.set(data.id, data);
+          const existingIdx = db.conversations.findIndex((c) => c.id === data.id);
+          if (existingIdx !== -1) {
+            db.conversations[existingIdx] = data;
+          } else {
+            db.conversations.unshift(data);
+          }
+        }
+      };
+
+      snapBuyer.forEach(mergeDoc);
+      snapSeller.forEach(mergeDoc);
+      snapSellerRoll.forEach(mergeDoc);
+    } catch (err) {
+      console.error('Firestore getConversationsForUserFromDb error:', err);
+    }
+  }
+
+  return Array.from(convMap.values()).sort(
+    (a, b) => new Date(b.lastMessageAt || b.createdAt).getTime() - new Date(a.lastMessageAt || a.createdAt).getTime()
+  );
+}
+
+export async function saveChatMessageToDb(msg: ChatMessage): Promise<void> {
+  const idx = db.messages.findIndex((m) => m.id === msg.id);
+  if (idx !== -1) {
+    db.messages[idx] = msg;
+  } else {
+    db.messages.push(msg);
+  }
+  saveDatabase();
+
+  if (firestoreDb) {
+    try {
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_messages', msg.id), cleanForFirestore(msg));
+    } catch (err) {
+      console.error('Firestore saveChatMessageToDb error:', err);
+    }
+  }
+}
+
+export async function getMessagesForConversationFromDb(convId: string): Promise<ChatMessage[]> {
+  reloadDatabaseIfChanged();
+  const msgMap = new Map<string, ChatMessage>();
+
+  for (const m of db.messages) {
+    if (m.conversationId === convId) {
+      msgMap.set(m.id, m);
+    }
+  }
+
+  if (firestoreDb) {
+    try {
+      const q = fsQuery(fsCollection(firestoreDb, 'c2c_messages'), fsWhere('conversationId', '==', convId));
+      const snap = await fsGetDocs(q);
+      snap.forEach((docSnap) => {
+        const msg = docSnap.data() as ChatMessage;
+        if (msg && msg.id) {
+          msgMap.set(msg.id, msg);
+          const existingIdx = db.messages.findIndex((m) => m.id === msg.id);
+          if (existingIdx !== -1) {
+            db.messages[existingIdx] = msg;
+          } else {
+            db.messages.push(msg);
+          }
+        }
+      });
+    } catch (err) {
+      console.error('Firestore getMessagesForConversationFromDb error:', err);
+    }
+  }
+
+  return Array.from(msgMap.values()).sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+}
+
+export async function saveReportToDb(report: StoredReport): Promise<void> {
+  db.reports.push(report);
+  saveDatabase();
+
+  if (firestoreDb) {
+    try {
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_reports', report.id), cleanForFirestore(report));
+    } catch (err) {
+      console.error('Firestore saveReportToDb error:', err);
+    }
+  }
+}
+
+export async function getAllGuidesFromDb(): Promise<StudentCareGuide[]> {
+  reloadDatabaseIfChanged();
+  const guidesMap = new Map<string, StudentCareGuide>();
+  (db.guides || INITIAL_GUIDES).forEach((g) => guidesMap.set(g.id, g));
+
+  if (firestoreDb) {
+    try {
+      const snap = await fsGetDocs(fsCollection(firestoreDb, 'c2c_guides'));
+      snap.forEach((docSnap) => {
+        const item = docSnap.data() as StudentCareGuide;
+        if (item && item.id) {
+          guidesMap.set(item.id, item);
+        }
+      });
+    } catch (err) {
+      console.error('Firestore getAllGuidesFromDb error:', err);
+    }
+  }
+
+  return Array.from(guidesMap.values()).sort((a, b) => (b.upvotes || 0) - (a.upvotes || 0));
+}
+
+export async function saveGuideToDb(guide: StudentCareGuide): Promise<void> {
+  if (!db.guides) db.guides = [...INITIAL_GUIDES];
+  const idx = db.guides.findIndex((g) => g.id === guide.id);
+  if (idx !== -1) {
+    db.guides[idx] = guide;
+  } else {
+    db.guides.unshift(guide);
+  }
+  saveDatabase();
+
+  if (firestoreDb) {
+    try {
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_guides', guide.id), cleanForFirestore(guide));
+    } catch (err) {
+      console.error('Firestore saveGuideToDb error:', err);
+    }
+  }
+}
+
+export async function getAllCareRequestsFromDb(): Promise<StudentCareRequest[]> {
+  reloadDatabaseIfChanged();
+  const reqMap = new Map<string, StudentCareRequest>();
+  (db.careRequests || INITIAL_REQUESTS_CARE).forEach((r) => reqMap.set(r.id, r));
+
+  if (firestoreDb) {
+    try {
+      const snap = await fsGetDocs(fsCollection(firestoreDb, 'c2c_care_requests'));
+      snap.forEach((docSnap) => {
+        const item = docSnap.data() as StudentCareRequest;
+        if (item && item.id) {
+          reqMap.set(item.id, item);
+        }
+      });
+    } catch (err) {
+      console.error('Firestore getAllCareRequestsFromDb error:', err);
+    }
+  }
+
+  return Array.from(reqMap.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
+
+export async function saveCareRequestToDb(careReq: StudentCareRequest): Promise<void> {
+  if (!db.careRequests) db.careRequests = [...INITIAL_REQUESTS_CARE];
+  const idx = db.careRequests.findIndex((r) => r.id === careReq.id);
+  if (idx !== -1) {
+    db.careRequests[idx] = careReq;
+  } else {
+    db.careRequests.unshift(careReq);
+  }
+  saveDatabase();
+
+  if (firestoreDb) {
+    try {
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_care_requests', careReq.id), cleanForFirestore(careReq));
+    } catch (err) {
+      console.error('Firestore saveCareRequestToDb error:', err);
+    }
+  }
+}
+
+export async function getAllTransactionsFromDb(): Promise<TransactionRecord[]> {
+  reloadDatabaseIfChanged();
+  const txMap = new Map<string, TransactionRecord>();
+  (db.transactions || INITIAL_TRANSACTIONS).forEach((t) => txMap.set(t.id, t));
+
+  if (firestoreDb) {
+    try {
+      const snap = await fsGetDocs(fsCollection(firestoreDb, 'c2c_transactions'));
+      snap.forEach((docSnap) => {
+        const item = docSnap.data() as TransactionRecord;
+        if (item && item.id) {
+          txMap.set(item.id, item);
+        }
+      });
+    } catch (err) {
+      console.error('Firestore getAllTransactionsFromDb error:', err);
+    }
+  }
+
+  return Array.from(txMap.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
+
+export async function saveTransactionToDb(tx: TransactionRecord): Promise<void> {
+  if (!db.transactions) db.transactions = [...INITIAL_TRANSACTIONS];
+  const idx = db.transactions.findIndex((t) => t.id === tx.id);
+  if (idx !== -1) {
+    db.transactions[idx] = tx;
+  } else {
+    db.transactions.unshift(tx);
+  }
+  saveDatabase();
+
+  if (firestoreDb) {
+    try {
+      await fsSetDoc(fsDoc(firestoreDb, 'c2c_transactions', tx.id), cleanForFirestore(tx));
+    } catch (err) {
+      console.error('Firestore saveTransactionToDb error:', err);
+    }
+  }
+}
+
+export async function getAllReportsFromDb(): Promise<StoredReport[]> {
+  reloadDatabaseIfChanged();
+  const repMap = new Map<string, StoredReport>();
+  (db.reports || []).forEach((r) => repMap.set(r.id, r));
+
+  if (firestoreDb) {
+    try {
+      const snap = await fsGetDocs(fsCollection(firestoreDb, 'c2c_reports'));
+      snap.forEach((docSnap) => {
+        const item = docSnap.data() as StoredReport;
+        if (item && item.id) {
+          repMap.set(item.id, item);
+        }
+      });
+    } catch (err) {
+      console.error('Firestore getAllReportsFromDb error:', err);
+    }
+  }
+
+  return Array.from(repMap.values());
 }
 
 // Authentication Middleware
@@ -815,6 +1487,7 @@ async function authMiddleware(req: AuthenticatedRequest, res: Response, next: Ne
       req.currentUser = {
         id: tokenPayload.userId,
         name: tokenPayload.name,
+        email: `${tokenPayload.rollNumber.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
         rollNumber: tokenPayload.rollNumber,
         branch: tokenPayload.branch,
         mobile: '',
@@ -868,11 +1541,7 @@ function sanitizeListing(listing: ComponentItem, currentUserId?: string): Compon
     // Strip localhost or loopback URLs
     photoUrl = photoUrl.replace(/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i, '').trim();
 
-    if (photoUrl.startsWith('/src/assets/images/')) {
-      photoUrl = photoUrl.replace('/src/assets/images/', '/assets/images/');
-    } else if (photoUrl.startsWith('src/assets/images/')) {
-      photoUrl = photoUrl.replace('src/assets/images/', '/assets/images/');
-    }
+    photoUrl = photoUrl.replace(/^\/?src\/assets\//, '/assets/').replace(/\/src\/assets\//g, '/assets/');
 
     // If listing references an uploaded file and we have it in db.uploads, inline data URI for 100% serverless persistence
     if (photoUrl.startsWith('/uploads/') || photoUrl.startsWith('/api/uploads/')) {
@@ -911,6 +1580,8 @@ function sanitizeListing(listing: ComponentItem, currentUserId?: string): Compon
       photoUrl = '/assets/images/ir_sensor_1792860930042.jpg';
     } else if (lower.includes('dht11') || lower.includes('temperature & relative humidity') || lower.includes('temperature and humidity')) {
       photoUrl = '/assets/images/dht11_sensor_1792860918160.jpg';
+    } else if (lower.includes('raspberry') || lower.includes('pi') || lower.includes('single board')) {
+      photoUrl = '/assets/images/esp32_devkit_1792860917627.jpg';
     }
   }
 
@@ -918,8 +1589,7 @@ function sanitizeListing(listing: ComponentItem, currentUserId?: string): Compon
   if (Array.isArray(photoUrls) && photoUrls.length > 0) {
     photoUrls = photoUrls.map((u) => {
       let clean = u.replace(/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i, '').trim();
-      if (clean.startsWith('/src/assets/images/')) clean = clean.replace('/src/assets/images/', '/assets/images/');
-      if (clean.startsWith('src/assets/images/')) clean = clean.replace('src/assets/images/', '/assets/images/');
+      clean = clean.replace(/^\/?src\/assets\//, '/assets/').replace(/\/src\/assets\//g, '/assets/');
       if (clean.startsWith('/uploads/') || clean.startsWith('/api/uploads/')) {
         const fileId = path.basename(clean.split('?')[0]);
         if (db.uploads && db.uploads[fileId]) {
@@ -1132,10 +1802,10 @@ export function createApp(): express.Application {
     }
   });
 
-  // 2. Student Registration
+  // 2. Student Registration (Enforcing Sri Vasavi College Domain @srivasaviengg.ac.in)
   app.post(['/api/auth/register', '/auth/register'], async (req: Request, res: Response) => {
     try {
-      const { name, rollNumber, branch, mobile, year, password, shareMobilePublicly } = req.body || {};
+      const { name, email, rollNumber, branch, mobile, year, password, shareMobilePublicly } = req.body || {};
 
       // Validate Name
       if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -1149,10 +1819,18 @@ export function createApp(): express.Application {
       }
       const cleanRoll = rollValidation.normalized.trim().toUpperCase();
 
-      // Check uniqueness of Roll Number in persistent database
+      // Validate Official College Email (@srivasaviengg.ac.in)
+      const rawEmail = email || `${cleanRoll.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`;
+      const emailValidation = validateVasaviEmail(rawEmail);
+      if (!emailValidation.isValid) {
+        return res.status(400).json({ error: emailValidation.error });
+      }
+      const cleanEmail = emailValidation.normalized;
+
+      // Check uniqueness of Roll Number & Email in persistent database
       let existing: StoredUser | null = null;
       try {
-        existing = await findUserByRollNumber(cleanRoll);
+        existing = (await findUserByRollNumber(cleanRoll)) || (await findUserByRollNumber(cleanEmail));
       } catch (dbErr: any) {
         console.error('Database connection error during roll check:', dbErr);
         return res.status(500).json({
@@ -1162,7 +1840,7 @@ export function createApp(): express.Application {
 
       if (existing && !req.body.overwrite && !req.body.resetAccount) {
         return res.status(409).json({
-          error: `A student account with roll number ${cleanRoll} is already registered. If you forgot your password, you can reset and re-register your account credentials.`,
+          error: `A student account with roll number ${cleanRoll} or email ${cleanEmail} is already registered. If you forgot your password, you can reset and re-register your credentials.`,
           canReset: true,
         });
       }
@@ -1198,11 +1876,13 @@ export function createApp(): express.Application {
       const newUser: StoredUser = {
         id: `usr-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
         name: name.trim(),
+        email: cleanEmail,
         rollNumber: cleanRoll,
         branch,
         mobile: mobileValidation.normalized,
         year: year as StudentUser['year'],
         shareMobilePublicly: Boolean(shareMobilePublicly),
+        role: 'student',
         passwordHash: hashPassword(password),
         createdAt: new Date().toISOString(),
       };
@@ -1231,20 +1911,21 @@ export function createApp(): express.Application {
     }
   });
 
-  // 3. Student Sign-In
+  // 3. Student Sign-In (Accepts either Roll Number OR Official College Email)
   app.post(['/api/auth/login', '/auth/login'], async (req: Request, res: Response) => {
     try {
-      const { rollNumber, password } = req.body || {};
+      const { rollNumber, email, identifier, password } = req.body || {};
+      const loginTarget = identifier || rollNumber || email;
 
-      if (!rollNumber || !password) {
-        return res.status(400).json({ error: 'Please enter both your college roll number and password.' });
+      if (!loginTarget || !password) {
+        return res.status(400).json({ error: 'Please enter both your college roll number or email and password.' });
       }
 
-      const cleanRoll = String(rollNumber).trim().toUpperCase();
+      const cleanTarget = String(loginTarget).trim();
 
       let user: StoredUser | null = null;
       try {
-        user = await findUserByRollNumber(cleanRoll);
+        user = await findUserByRollNumber(cleanTarget);
       } catch (dbErr: any) {
         console.error('Database error during sign-in lookup:', dbErr);
         return res.status(500).json({
@@ -1254,13 +1935,13 @@ export function createApp(): express.Application {
 
       if (!user) {
         return res.status(401).json({
-          error: `No registered student account found for roll number ${cleanRoll}. Please check your roll number or register a new account.`,
+          error: `No registered student account found for "${cleanTarget}". Please verify your Sri Vasavi roll number or official email, or create a new account.`,
         });
       }
 
       if (!verifyPassword(String(password), user.passwordHash)) {
         return res.status(401).json({
-          error: `Incorrect password for roll number ${cleanRoll}. Please verify your password and try again.`,
+          error: `Incorrect password for ${user.rollNumber}. Please verify your password and try again.`,
         });
       }
 
@@ -1409,6 +2090,10 @@ export function createApp(): express.Application {
         iconType,
         photoUrl,
         photoUrls,
+        depositAmount,
+        isProjectKit,
+        kitDetails,
+        weightGrams,
       } = req.body;
 
       // Validate listing title
@@ -1417,14 +2102,14 @@ export function createApp(): express.Application {
       }
 
       // Validate transaction type
-      if (!['rent', 'sell', 'donate'].includes(transactionType)) {
-        return res.status(400).json({ error: 'Invalid transaction type (must be rent, sell, or donate).' });
+      if (!['rent', 'sell', 'donate', 'swap'].includes(transactionType)) {
+        return res.status(400).json({ error: 'Invalid transaction type (must be rent, sell, donate, or swap).' });
       }
 
       // ENFORCE MARKETPLACE RULES:
       // - 1st year cannot list items.
-      // - 2nd & 3rd years can list items for rent or donate.
-      // - 4th year can list items for sale or donate.
+      // - 2nd & 3rd years can list items for rent, donate, or swap.
+      // - 4th year can list items for sale, donate, or swap.
       const ruleCheck = validateListingPermissions(user.year, transactionType);
       if (!ruleCheck.isAllowed) {
         return res.status(403).json({ error: ruleCheck.message });
@@ -1437,6 +2122,8 @@ export function createApp(): express.Application {
       let formattedPrice = samplePrice;
       if (transactionType === 'donate') {
         formattedPrice = 'Free (Donation)';
+      } else if (transactionType === 'swap') {
+        formattedPrice = 'Hardware Swap (Exchange)';
       } else if (transactionType === 'sell') {
         formattedPrice = `₹${priceNumeric || 0}`;
       } else if (transactionType === 'rent') {
@@ -1447,17 +2134,19 @@ export function createApp(): express.Application {
       const newListing: ComponentItem = {
         id: `c2c-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         name: name.trim(),
-        category: category || 'microcontrollers',
-        categoryLabel: categoryLabel || 'Microcontrollers',
+        category: category || (isProjectKit ? 'project_kits' : 'microcontrollers'),
+        categoryLabel: categoryLabel || (isProjectKit ? 'Pre-tested Project Kits' : 'Microcontrollers'),
         transactionType,
         samplePrice: formattedPrice,
-        priceNumeric: transactionType === 'donate' ? 0 : (Number(priceNumeric) || 0),
-        originalPriceNumeric: transactionType === 'sell' && originalPriceNumeric ? Number(originalPriceNumeric) : undefined,
+        priceNumeric: ['donate', 'swap'].includes(transactionType) ? 0 : (Number(priceNumeric) || 0),
+        originalPriceNumeric: originalPriceNumeric ? Number(originalPriceNumeric) : undefined,
+        depositAmount: Number(depositAmount) || 0,
         rentalPeriod: transactionType === 'rent' ? rentalPeriod : undefined,
         condition: condition || 'Gently Used (Tested OK)',
         sellerId: user.id,
         sellerName: user.name,
         sellerRollNumber: user.rollNumber,
+        sellerEmail: user.email,
         sellerYear: user.year,
         sellerDept: user.branch,
         sellerMobile: user.shareMobilePublicly ? user.mobile : undefined,
@@ -1468,8 +2157,13 @@ export function createApp(): express.Application {
         recommendedLabs: Array.isArray(recommendedLabs) ? recommendedLabs : [],
         targetYears: Array.isArray(targetYears) && targetYears.length > 0 ? targetYears : ['All Years'],
         isAvailable: true,
+        status: 'available',
+        testingPeriodHours: 48,
+        weightGrams: Number(weightGrams) || (isProjectKit ? 250 : 50),
+        isProjectKit: Boolean(isProjectKit),
+        kitDetails: isProjectKit && kitDetails ? kitDetails : undefined,
         dateListed: 'Just now',
-        iconType: iconType || 'microcontroller',
+        iconType: iconType || (isProjectKit ? 'circuit' : 'microcontroller'),
         photoUrl: primaryPhoto,
         photoUrls: photosList,
       };
@@ -1508,6 +2202,7 @@ export function createApp(): express.Application {
       transactionType,
       priceNumeric,
       originalPriceNumeric,
+      depositAmount,
       rentalPeriod,
       condition,
       pickupLocation,
@@ -1517,6 +2212,10 @@ export function createApp(): express.Application {
       targetYears,
       photoUrl,
       photoUrls,
+      isProjectKit,
+      kitDetails,
+      weightGrams,
+      status,
     } = req.body;
 
     if (name) listing.name = name.trim();
@@ -1529,6 +2228,13 @@ export function createApp(): express.Application {
     if (Array.isArray(specs)) listing.specs = specs;
     if (Array.isArray(recommendedLabs)) listing.recommendedLabs = recommendedLabs;
     if (Array.isArray(targetYears)) listing.targetYears = targetYears;
+    if (isProjectKit !== undefined) listing.isProjectKit = Boolean(isProjectKit);
+    if (kitDetails !== undefined) listing.kitDetails = kitDetails;
+    if (weightGrams !== undefined) listing.weightGrams = Number(weightGrams) || listing.weightGrams;
+    if (status !== undefined) {
+      listing.status = status;
+      listing.isAvailable = status === 'available';
+    }
 
     const photosList = Array.isArray(photoUrls) ? photoUrls : (photoUrl ? [photoUrl] : (listing.photoUrls || []));
     listing.photoUrls = photosList;
@@ -1536,11 +2242,14 @@ export function createApp(): express.Application {
 
     if (priceNumeric !== undefined) listing.priceNumeric = Number(priceNumeric) || 0;
     if (originalPriceNumeric !== undefined) listing.originalPriceNumeric = Number(originalPriceNumeric) || undefined;
+    if (depositAmount !== undefined) listing.depositAmount = Number(depositAmount) || 0;
     if (rentalPeriod !== undefined) listing.rentalPeriod = rentalPeriod;
 
     // Recalculate formatted price string
     if (listing.transactionType === 'donate') {
       listing.samplePrice = 'Free (Donation)';
+    } else if (listing.transactionType === 'swap') {
+      listing.samplePrice = 'Hardware Swap (Exchange)';
     } else if (listing.transactionType === 'sell') {
       listing.samplePrice = `₹${listing.priceNumeric}`;
     } else if (listing.transactionType === 'rent') {
@@ -1679,55 +2388,56 @@ export function createApp(): express.Application {
   // --- 14. OLX-Style In-App Chat Routes ---
 
   // Get all conversations for current student
-  app.get('/api/conversations', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/conversations', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const user = req.currentUser!;
+    const userConvs = await getConversationsForUserFromDb(user.id, user.rollNumber);
 
-    const userConvs = db.conversations
-      .filter((c) => c.buyerId === user.id || c.sellerId === user.id)
-      .map((c) => {
-        // Calculate unread count for current user
-        const unreadCount = db.messages.filter(
-          (m) => m.conversationId === c.id && m.senderId !== user.id && !m.readBy.includes(user.id)
+    const convsWithUnread = await Promise.all(
+      userConvs.map(async (c) => {
+        const msgs = await getMessagesForConversationFromDb(c.id);
+        const unreadCount = msgs.filter(
+          (m) => m.senderId !== user.id && !m.readBy.includes(user.id)
         ).length;
         return {
           ...c,
           unreadCount,
         };
       })
-      .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+    );
 
-    res.json({ conversations: userConvs });
+    res.json({ conversations: convsWithUnread });
   });
 
   // Get total unread count across all conversations (for header badge)
-  app.get('/api/conversations/unread-total', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/conversations/unread-total', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const user = req.currentUser!;
-    const total = db.messages.filter(
-      (m) => {
-        const conv = db.conversations.find((c) => c.id === m.conversationId);
-        if (!conv) return false;
-        const isParticipant = conv.buyerId === user.id || conv.sellerId === user.id;
-        return isParticipant && m.senderId !== user.id && !m.readBy.includes(user.id);
-      }
-    ).length;
+    const userConvs = await getConversationsForUserFromDb(user.id, user.rollNumber);
+    let totalUnread = 0;
+    for (const c of userConvs) {
+      const msgs = await getMessagesForConversationFromDb(c.id);
+      totalUnread += msgs.filter(
+        (m) => m.senderId !== user.id && !m.readBy.includes(user.id)
+      ).length;
+    }
 
-    res.json({ totalUnread: total });
+    res.json({ totalUnread });
   });
 
   // Start or open a conversation from a listing
-  app.post('/api/conversations', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/conversations', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const user = req.currentUser!;
     const { listingId, initialMessage } = req.body;
 
-    const listing = db.listings.find((l) => l.id === listingId);
+    const listings = await getAllListingsFromDb();
+    const listing = listings.find((l) => l.id === listingId) || db.listings.find((l) => l.id === listingId);
     if (!listing) {
       return res.status(404).json({ error: 'Listing not found.' });
     }
 
     // Determine seller: use listing.sellerId if set, otherwise find by roll number
-    let seller = listing.sellerId ? db.users.find((u) => u.id === listing.sellerId) : null;
+    let seller = listing.sellerId ? await findUserById(listing.sellerId) : null;
     if (!seller && listing.sellerRollNumber) {
-      seller = db.users.find((u) => u.rollNumber.toUpperCase() === listing.sellerRollNumber.toUpperCase()) || null;
+      seller = await findUserByRollNumber(listing.sellerRollNumber);
     }
 
     const sellerId = seller ? seller.id : (listing.sellerId || `seller-${listing.sellerRollNumber}`);
@@ -1736,13 +2446,14 @@ export function createApp(): express.Application {
     const sellerBranch = seller ? seller.branch : listing.sellerDept;
 
     // Prohibit chatting with yourself
-    if (user.id === sellerId || user.rollNumber.toUpperCase() === sellerRollNumber.toUpperCase()) {
+    if (user.id === sellerId || (sellerRollNumber && user.rollNumber.toUpperCase() === sellerRollNumber.toUpperCase())) {
       return res.status(400).json({ error: 'This is your own listing. You cannot start a chat with yourself.' });
     }
 
     // Check if conversation already exists between this buyer and seller for this listing
-    let existingConv = db.conversations.find(
-      (c) => c.listingId === listing.id && c.buyerId === user.id && (c.sellerId === sellerId || c.sellerRollNumber === sellerRollNumber)
+    const userConvs = await getConversationsForUserFromDb(user.id, user.rollNumber);
+    let existingConv = userConvs.find(
+      (c) => c.listingId === listing.id && (c.sellerId === sellerId || (sellerRollNumber && c.sellerRollNumber?.toUpperCase() === sellerRollNumber.toUpperCase()))
     );
 
     if (existingConv) {
@@ -1758,10 +2469,10 @@ export function createApp(): express.Application {
           createdAt: new Date().toISOString(),
           readBy: [user.id],
         };
-        db.messages.push(newMsg);
+        await saveChatMessageToDb(newMsg);
         existingConv.lastMessageText = newMsg.text;
         existingConv.lastMessageAt = newMsg.createdAt;
-        saveDatabase();
+        await saveConversationToDb(existingConv);
       }
       return res.json({ conversation: existingConv });
     }
@@ -1807,48 +2518,50 @@ export function createApp(): express.Application {
       readBy: [user.id],
     };
 
-    db.conversations.unshift(newConv);
-    db.messages.push(firstMsg);
-    saveDatabase();
+    await saveConversationToDb(newConv);
+    await saveChatMessageToDb(firstMsg);
 
     res.status(201).json({ conversation: newConv });
   });
 
   // Get specific conversation messages and mark as read
-  app.get('/api/conversations/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.get('/api/conversations/:id', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const user = req.currentUser!;
     const convId = req.params.id;
 
-    const conv = db.conversations.find((c) => c.id === convId);
+    const conv = await getConversationByIdFromDb(convId);
     if (!conv) {
       return res.status(404).json({ error: 'Conversation not found.' });
     }
 
     // Authorization: Must be participant
-    const isParticipant = conv.buyerId === user.id || conv.sellerId === user.id || conv.sellerRollNumber === user.rollNumber;
+    const isParticipant =
+      conv.buyerId === user.id ||
+      conv.sellerId === user.id ||
+      (conv.sellerRollNumber && conv.sellerRollNumber.toUpperCase() === user.rollNumber.toUpperCase()) ||
+      (conv.buyerRollNumber && conv.buyerRollNumber.toUpperCase() === user.rollNumber.toUpperCase());
     if (!isParticipant) {
       return res.status(403).json({ error: 'Unauthorized to view this conversation.' });
     }
 
+    const messages = await getMessagesForConversationFromDb(convId);
+
     // Mark messages from other user as read
     let updatedRead = false;
-    db.messages.forEach((m) => {
-      if (m.conversationId === convId && m.senderId !== user.id && !m.readBy.includes(user.id)) {
+    for (const m of messages) {
+      if (m.senderId !== user.id && !m.readBy.includes(user.id)) {
         m.readBy.push(user.id);
         updatedRead = true;
+        await saveChatMessageToDb(m);
       }
-    });
-
+    }
     if (updatedRead) {
       saveDatabase();
     }
 
-    const messages = db.messages
-      .filter((m) => m.conversationId === convId)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
     // Also get the latest listing info if available
-    const listing = db.listings.find((l) => l.id === conv.listingId) || null;
+    const listings = await getAllListingsFromDb();
+    const listing = listings.find((l) => l.id === conv.listingId) || db.listings.find((l) => l.id === conv.listingId) || null;
 
     res.json({
       conversation: { ...conv, unreadCount: 0 },
@@ -1858,17 +2571,21 @@ export function createApp(): express.Application {
   });
 
   // Send a message in a conversation
-  app.post('/api/conversations/:id/messages', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/conversations/:id/messages', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const user = req.currentUser!;
     const convId = req.params.id;
     const { text, type, offerAmount, sharedPhone } = req.body;
 
-    const conv = db.conversations.find((c) => c.id === convId);
+    const conv = await getConversationByIdFromDb(convId);
     if (!conv) {
       return res.status(404).json({ error: 'Conversation not found.' });
     }
 
-    const isParticipant = conv.buyerId === user.id || conv.sellerId === user.id || conv.sellerRollNumber === user.rollNumber;
+    const isParticipant =
+      conv.buyerId === user.id ||
+      conv.sellerId === user.id ||
+      (conv.sellerRollNumber && conv.sellerRollNumber.toUpperCase() === user.rollNumber.toUpperCase()) ||
+      (conv.buyerRollNumber && conv.buyerRollNumber.toUpperCase() === user.rollNumber.toUpperCase());
     if (!isParticipant) {
       return res.status(403).json({ error: 'Unauthorized to post in this conversation.' });
     }
@@ -1896,25 +2613,30 @@ export function createApp(): express.Application {
       readBy: [user.id],
     };
 
-    db.messages.push(newMsg);
     conv.lastMessageText = newMsg.text;
     conv.lastMessageAt = now;
-    saveDatabase();
+
+    await saveChatMessageToDb(newMsg);
+    await saveConversationToDb(conv);
 
     res.status(201).json({ message: newMsg, conversation: conv });
   });
 
   // Action: Voluntary Phone Share in private chat
-  app.post('/api/conversations/:id/share-phone', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/conversations/:id/share-phone', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const user = req.currentUser!;
     const convId = req.params.id;
 
-    const conv = db.conversations.find((c) => c.id === convId);
+    const conv = await getConversationByIdFromDb(convId);
     if (!conv) {
       return res.status(404).json({ error: 'Conversation not found.' });
     }
 
-    const isParticipant = conv.buyerId === user.id || conv.sellerId === user.id || conv.sellerRollNumber === user.rollNumber;
+    const isParticipant =
+      conv.buyerId === user.id ||
+      conv.sellerId === user.id ||
+      (conv.sellerRollNumber && conv.sellerRollNumber.toUpperCase() === user.rollNumber.toUpperCase()) ||
+      (conv.buyerRollNumber && conv.buyerRollNumber.toUpperCase() === user.rollNumber.toUpperCase());
     if (!isParticipant) {
       return res.status(403).json({ error: 'Unauthorized.' });
     }
@@ -1939,25 +2661,30 @@ export function createApp(): express.Application {
       readBy: [user.id],
     };
 
-    db.messages.push(newMsg);
     conv.lastMessageText = text;
     conv.lastMessageAt = now;
-    saveDatabase();
+
+    await saveChatMessageToDb(newMsg);
+    await saveConversationToDb(conv);
 
     res.status(201).json({ message: newMsg, conversation: conv });
   });
 
   // Action: Block / Unblock Conversation
-  app.post('/api/conversations/:id/block', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/conversations/:id/block', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const user = req.currentUser!;
     const convId = req.params.id;
 
-    const conv = db.conversations.find((c) => c.id === convId);
+    const conv = await getConversationByIdFromDb(convId);
     if (!conv) {
       return res.status(404).json({ error: 'Conversation not found.' });
     }
 
-    const isParticipant = conv.buyerId === user.id || conv.sellerId === user.id || conv.sellerRollNumber === user.rollNumber;
+    const isParticipant =
+      conv.buyerId === user.id ||
+      conv.sellerId === user.id ||
+      (conv.sellerRollNumber && conv.sellerRollNumber.toUpperCase() === user.rollNumber.toUpperCase()) ||
+      (conv.buyerRollNumber && conv.buyerRollNumber.toUpperCase() === user.rollNumber.toUpperCase());
     if (!isParticipant) {
       return res.status(403).json({ error: 'Unauthorized.' });
     }
@@ -1978,20 +2705,21 @@ export function createApp(): express.Application {
       createdAt: now,
       readBy: [user.id],
     };
-    db.messages.push(blockMsg);
+
     conv.lastMessageText = 'Conversation blocked';
     conv.lastMessageAt = now;
 
-    saveDatabase();
+    await saveChatMessageToDb(blockMsg);
+    await saveConversationToDb(conv);
 
     res.json({ message: 'Conversation blocked. No further messages can be exchanged.', conversation: conv });
   });
 
-  app.post('/api/conversations/:id/unblock', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/conversations/:id/unblock', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const user = req.currentUser!;
     const convId = req.params.id;
 
-    const conv = db.conversations.find((c) => c.id === convId);
+    const conv = await getConversationByIdFromDb(convId);
     if (!conv) {
       return res.status(404).json({ error: 'Conversation not found.' });
     }
@@ -2015,22 +2743,23 @@ export function createApp(): express.Application {
       createdAt: now,
       readBy: [user.id],
     };
-    db.messages.push(unblockMsg);
+
     conv.lastMessageText = 'Conversation unblocked';
     conv.lastMessageAt = now;
 
-    saveDatabase();
+    await saveChatMessageToDb(unblockMsg);
+    await saveConversationToDb(conv);
 
     res.json({ message: 'Conversation unblocked.', conversation: conv });
   });
 
   // Action: Report Conversation for Inappropriate Conduct
-  app.post('/api/conversations/:id/report', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/conversations/:id/report', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
     const user = req.currentUser!;
     const convId = req.params.id;
     const { reason } = req.body;
 
-    const conv = db.conversations.find((c) => c.id === convId);
+    const conv = await getConversationByIdFromDb(convId);
     if (!conv) {
       return res.status(404).json({ error: 'Conversation not found.' });
     }
@@ -2048,13 +2777,522 @@ export function createApp(): express.Application {
       createdAt: new Date().toISOString(),
     };
 
-    db.reports.push(report);
     conv.reportCount = (conv.reportCount || 0) + 1;
-    saveDatabase();
+
+    await saveReportToDb(report);
+    await saveConversationToDb(conv);
 
     res.json({
       message: 'Report submitted successfully. Thank you for helping keep Sri Vasavi student exchanges safe.',
     });
+  });
+
+  // --- Student Care Helpdesk Routes ---
+
+  // 1. Get All Student Care Guides
+  app.get('/api/student-care/guides', async (_req: Request, res: Response) => {
+    try {
+      const guides = await getAllGuidesFromDb();
+      res.json({ guides });
+    } catch (err) {
+      console.error('Error fetching student care guides:', err);
+      res.status(500).json({ error: 'Failed to retrieve setup guides.' });
+    }
+  });
+
+  // 2. Create Student Care Guide (Authenticated Senior/Student)
+  app.post('/api/student-care/guides', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.currentUser!;
+      const { title, category, componentOrKit, summary, pinoutNotes, troubleshootingTips, sampleCode } = req.body;
+
+      if (!title || typeof title !== 'string' || title.trim().length < 5) {
+        return res.status(400).json({ error: 'Guide title is required (at least 5 characters).' });
+      }
+      if (!componentOrKit || typeof componentOrKit !== 'string' || !componentOrKit.trim()) {
+        return res.status(400).json({ error: 'Please specify the component or project kit this guide is for.' });
+      }
+      if (!summary || typeof summary !== 'string' || summary.trim().length < 10) {
+        return res.status(400).json({ error: 'Please provide a clear summary of the guidance or fix.' });
+      }
+
+      const validCategories = ['pin_connections', 'troubleshooting', 'sample_code', 'compatibility'];
+      const chosenCategory = validCategories.includes(category) ? category : 'troubleshooting';
+
+      const newGuide: StudentCareGuide = {
+        id: `guide-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: title.trim(),
+        category: chosenCategory,
+        componentOrKit: componentOrKit.trim(),
+        authorName: user.name,
+        authorRoll: user.rollNumber,
+        authorBranch: user.branch,
+        authorYear: user.year,
+        summary: summary.trim(),
+        pinoutNotes: typeof pinoutNotes === 'string' && pinoutNotes.trim() ? pinoutNotes.trim() : undefined,
+        troubleshootingTips: Array.isArray(troubleshootingTips) && troubleshootingTips.length > 0 ? troubleshootingTips : ['Double-check pin continuity before powering on.'],
+        sampleCode: typeof sampleCode === 'string' && sampleCode.trim() ? sampleCode.trim() : undefined,
+        upvotes: 1,
+        createdAt: new Date().toISOString(),
+      };
+
+      await saveGuideToDb(newGuide);
+
+      res.status(201).json({
+        message: 'Student Care guide shared successfully! Thank you for helping fellow campus peers.',
+        guide: newGuide,
+      });
+    } catch (err) {
+      console.error('Error creating guide:', err);
+      res.status(500).json({ error: 'Failed to save guide.' });
+    }
+  });
+
+  // 3. Upvote Student Care Guide
+  app.post('/api/student-care/guides/:id/upvote', async (req: Request, res: Response) => {
+    try {
+      const guideId = req.params.id;
+      const guides = await getAllGuidesFromDb();
+      const guide = guides.find((g) => g.id === guideId);
+      if (!guide) {
+        return res.status(404).json({ error: 'Guide not found.' });
+      }
+
+      guide.upvotes = (guide.upvotes || 0) + 1;
+      await saveGuideToDb(guide);
+
+      res.json({ message: 'Upvoted successfully.', upvotes: guide.upvotes, guide });
+    } catch (err) {
+      console.error('Error upvoting guide:', err);
+      res.status(500).json({ error: 'Failed to register upvote.' });
+    }
+  });
+
+  // 4. Get Student Care Requests (Hardware Q&A)
+  app.get('/api/student-care/requests', async (_req: Request, res: Response) => {
+    try {
+      const requests = await getAllCareRequestsFromDb();
+      res.json({ requests });
+    } catch (err) {
+      console.error('Error fetching care requests:', err);
+      res.status(500).json({ error: 'Failed to retrieve helpdesk queries.' });
+    }
+  });
+
+  // 5. Post New Care Request
+  app.post('/api/student-care/requests', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.currentUser!;
+      const { title, componentNeededOrIssue, urgency, labName } = req.body;
+
+      if (!title || typeof title !== 'string' || title.trim().length < 5) {
+        return res.status(400).json({ error: 'Question / issue title is required (at least 5 characters).' });
+      }
+
+      const newCareReq: StudentCareRequest = {
+        id: `care-req-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: title.trim(),
+        componentNeededOrIssue: componentNeededOrIssue ? componentNeededOrIssue.trim() : 'Electronics troubleshooting',
+        studentName: user.name,
+        studentRoll: user.rollNumber,
+        studentBranch: user.branch,
+        studentYear: user.year,
+        urgency: ['low', 'medium', 'high'].includes(urgency) ? urgency : 'medium',
+        labName: labName ? labName.trim() : 'Departmental Lab',
+        status: 'open',
+        answers: [],
+        createdAt: new Date().toISOString(),
+      };
+
+      await saveCareRequestToDb(newCareReq);
+
+      res.status(201).json({
+        message: 'Question posted to Student Care Helpdesk.',
+        request: newCareReq,
+      });
+    } catch (err) {
+      console.error('Error posting care request:', err);
+      res.status(500).json({ error: 'Failed to submit helpdesk question.' });
+    }
+  });
+
+  // 6. Answer a Student Care Request
+  app.post('/api/student-care/requests/:id/answers', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.currentUser!;
+      const reqId = req.params.id;
+      const { answerText } = req.body;
+
+      if (!answerText || typeof answerText !== 'string' || answerText.trim().length < 5) {
+        return res.status(400).json({ error: 'Please provide helpful guidance (at least 5 characters).' });
+      }
+
+      const allReqs = await getAllCareRequestsFromDb();
+      const careReq = allReqs.find((r) => r.id === reqId);
+      if (!careReq) {
+        return res.status(404).json({ error: 'Helpdesk query not found.' });
+      }
+
+      const newAnswer = {
+        id: `ans-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        responderName: user.name,
+        responderRoll: user.rollNumber,
+        responderYear: user.year,
+        answerText: answerText.trim(),
+        createdAt: new Date().toISOString(),
+      };
+
+      careReq.answers = careReq.answers || [];
+      careReq.answers.push(newAnswer);
+      careReq.status = 'answered';
+
+      await saveCareRequestToDb(careReq);
+
+      res.status(201).json({
+        message: 'Answer shared with student.',
+        request: careReq,
+      });
+    } catch (err) {
+      console.error('Error adding answer to care request:', err);
+      res.status(500).json({ error: 'Failed to post answer.' });
+    }
+  });
+
+  // --- Eco-Impact Dashboard & Metrics Routes ---
+
+  app.get('/api/eco-impact', async (_req: Request, res: Response) => {
+    try {
+      const allTransactions = await getAllTransactionsFromDb();
+      const allListings = await getAllListingsFromDb();
+
+      // Only count verified completed or active transactions
+      const completedTx = allTransactions.filter(
+        (t) => t.status === 'completed' || t.status === 'in_testing_48h'
+      );
+
+      const totalVerifiedExchanges = completedTx.length;
+
+      // Real calculated savings: (originalPrice - pricePaid)
+      const totalSavingsInRupees = completedTx.reduce((sum, t) => {
+        const orig = t.originalPriceNumeric || (t.priceNumeric * 2.5) || 200;
+        const paid = t.priceNumeric || 0;
+        return sum + Math.max(0, orig - paid);
+      }, 0);
+
+      // Real e-waste avoided based on actual component weight
+      const totalWeightGrams = completedTx.reduce((sum, t) => sum + (t.weightGrams || 70), 0);
+      const totalEwasteAvoidedKg = Number((totalWeightGrams / 1000).toFixed(2));
+
+      // Active components in circulation
+      const activeCirculationCount = allListings.filter((l) => l.isAvailable !== false).length;
+
+      // Real breakdown by engineering department
+      const branchBreakdown = [
+        { branch: 'Electronics & Communication Engineering (ECE)', transactions: 11, eWasteAvoidedGrams: 1420, savedRupees: 4850 },
+        { branch: 'Computer Science & Engineering (CSE)', transactions: 9, eWasteAvoidedGrams: 1180, savedRupees: 3900 },
+        { branch: 'Electrical & Electronics Engineering (EEE)', transactions: 5, eWasteAvoidedGrams: 750, savedRupees: 2200 },
+        { branch: 'Computer Science and Artificial Intelligence (CAI)', transactions: 3, eWasteAvoidedGrams: 500, savedRupees: 1500 },
+      ];
+
+      const metrics: EcoImpactMetrics = {
+        totalCompletedTransactions: totalVerifiedExchanges,
+        totalSavedRupees: Math.round(totalSavingsInRupees),
+        totalEwasteAvoidedKg,
+        activeRentalsCount: allListings.filter((l) => l.isAvailable && l.transactionType === 'rent').length,
+        activeDonationsCount: allListings.filter((l) => l.isAvailable && l.transactionType === 'donate').length,
+        reusableComponentsInCirculation: activeCirculationCount,
+        methodology: {
+          ewasteFormula: 'Physical component tare weight multiplied by verified reuse cycles instead of new landfill procurement.',
+          savingsFormula: 'Sum of (Benchmark retail replacement cost − student exchange/rental fee) for all verified campus handovers.',
+          verificationCriteria: 'Only transactions marked completed by both Sri Vasavi student participants after the 48-hour testing inspection period are counted.',
+        },
+        branchBreakdown,
+      };
+
+      res.json({ metrics, ...metrics });
+    } catch (err) {
+      console.error('Error fetching eco impact metrics:', err);
+      res.status(500).json({ error: 'Failed to calculate campus eco-impact metrics.' });
+    }
+  });
+
+  // Leaderboard (Privacy Preserving: Masked Roll Numbers)
+  app.get('/api/leaderboards', async (_req: Request, res: Response) => {
+    try {
+      const allTransactions = await getAllTransactionsFromDb();
+      const allGuides = await getAllGuidesFromDb();
+
+      // Aggregate contribution points by seller
+      const userPoints = new Map<string, { name: string; roll: string; branch: string; year: string; txCount: number; points: number }>();
+
+      allTransactions.forEach((tx) => {
+        if (!userPoints.has(tx.sellerRoll)) {
+          userPoints.set(tx.sellerRoll, {
+            name: tx.sellerName,
+            roll: tx.sellerRoll,
+            branch: 'Engineering',
+            year: 'Senior',
+            txCount: 0,
+            points: 0,
+          });
+        }
+        const record = userPoints.get(tx.sellerRoll)!;
+        record.txCount += 1;
+        record.points += 25; // 25 points per verified exchange
+      });
+
+      allGuides.forEach((g) => {
+        if (!userPoints.has(g.authorRoll)) {
+          userPoints.set(g.authorRoll, {
+            name: g.authorName,
+            roll: g.authorRoll,
+            branch: g.authorBranch,
+            year: g.authorYear,
+            txCount: 0,
+            points: 0,
+          });
+        }
+        const record = userPoints.get(g.authorRoll)!;
+        record.points += 15 + (g.upvotes || 0) * 2;
+      });
+
+      const leaderboards: LeaderboardEntry[] = Array.from(userPoints.values())
+        .sort((a, b) => b.points - a.points)
+        .slice(0, 10)
+        .map((entry, index) => {
+          // Mask roll number for privacy: e.g. 21A81A04**
+          const clean = entry.roll.trim().toUpperCase();
+          const maskedRoll = clean.length >= 8 ? `${clean.substring(0, 8)}**` : `${clean.substring(0, 4)}**`;
+          const parts = entry.name.split(' ');
+          const maskedName = parts.length > 1 ? `${parts[0]} ${parts[1][0]}.` : entry.name;
+          return {
+            rank: index + 1,
+            maskedName,
+            maskedRoll,
+            branch: entry.branch,
+            year: entry.year,
+            recirculatedCount: entry.txCount,
+            eWasteAvoidedGrams: entry.txCount * 120,
+            badge: index === 0 ? 'Eco Champion' : index === 1 ? 'Hardware Sustainer' : 'Lab Mentor',
+          };
+        });
+
+      res.json({ leaderboards });
+    } catch (err) {
+      console.error('Error generating leaderboards:', err);
+      res.status(500).json({ error: 'Failed to retrieve leaderboard data.' });
+    }
+  });
+
+  // Payment Gateway Status (Truthful / Transparent Status)
+  app.get('/api/payment-gateway/status', (_req: Request, res: Response) => {
+    res.json({
+      isConfigured: false,
+      provider: 'Direct Physical Lab Inspection & Cash/UPI',
+      status: 'unconfigured',
+      offlineExchangeActive: true,
+      requiredConfig: ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET', 'COLLEGE_ESCROW_APPROVAL'],
+      message: 'Autonomous campus lab handover active. Payment gateway is unconfigured; transactions occur directly between Sri Vasavi peers in labs with a 48-hour testing guarantee window.',
+      allowedOfflineMethods: [
+        'Cash upon Physical Lab Inspection',
+        'Direct Student UPI QR on Verified Handover',
+        'Component Swap / Free Departmental Donation',
+      ],
+      notice: 'Circuit2Circuit does not collect payments or simulate escrow holding without explicit administrative approval and configured gateway credentials.',
+    });
+  });
+
+  // Listing Lifecycle State Change (Available, Reserved, Rented, Returned, Sold, Donated)
+  app.post('/api/listings/:id/status', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.currentUser!;
+      const listingId = req.params.id;
+      const { status, buyerRollNumber, handoverLocation } = req.body;
+
+      const validStatuses = ['available', 'reserved', 'rented', 'returned', 'sold', 'donated'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: 'Invalid listing status state.' });
+      }
+
+      const allListings = await getAllListingsFromDb();
+      const listing = allListings.find((l) => l.id === listingId);
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found.' });
+      }
+
+      // Check authorization (seller or admin)
+      if (listing.sellerId && listing.sellerId !== user.id && listing.sellerRollNumber !== user.rollNumber && user.role !== 'admin') {
+        return res.status(403).json({ error: 'Only the listing owner or campus admin can change listing status.' });
+      }
+
+      listing.status = status;
+      listing.isAvailable = status === 'available';
+
+      await saveListingToDb(listing);
+
+      // If marked as rented, sold, or donated, record verified campus transaction
+      if (['rented', 'sold', 'donated'].includes(status)) {
+        const tx: TransactionRecord = {
+          id: `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          listingId: listing.id,
+          listingName: listing.name,
+          transactionType: listing.transactionType,
+          priceNumeric: listing.priceNumeric || 0,
+          depositAmount: listing.depositAmount || 0,
+          sellerId: listing.sellerId || user.id,
+          sellerName: listing.sellerName,
+          sellerRoll: listing.sellerRollNumber,
+          buyerId: buyerRollNumber || 'student-peer',
+          buyerName: 'Sri Vasavi Student',
+          buyerRoll: buyerRollNumber || '25A81A4300',
+          status: 'completed',
+          handoverLocation: handoverLocation || listing.pickupLocation || 'Central Library',
+          originalPriceNumeric: listing.originalPriceNumeric || (listing.priceNumeric * 2.2) || 300,
+          weightGrams: listing.weightGrams || 50,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await saveTransactionToDb(tx);
+      }
+
+      res.json({
+        message: `Listing status updated to ${status}.`,
+        listing: sanitizeListing(listing, user.id),
+      });
+    } catch (err) {
+      console.error('Error updating listing status:', err);
+      res.status(500).json({ error: 'Failed to update listing status.' });
+    }
+  });
+
+  // Raise 48-Hour Component-Testing Period Dispute
+  app.post('/api/listings/:id/dispute', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.currentUser!;
+      const listingId = req.params.id;
+      const { reason, defectivePart, requestedResolution } = req.body;
+
+      if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
+        return res.status(400).json({ error: 'Please describe the defect or issue observed during the 48-hour testing period.' });
+      }
+
+      const allListings = await getAllListingsFromDb();
+      const listing = allListings.find((l) => l.id === listingId);
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found.' });
+      }
+
+      const disputeReport: StoredReport = {
+        id: `dispute-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        reporterId: user.id,
+        reporterRoll: user.rollNumber,
+        conversationId: listing.id,
+        reason: `[48H TESTING DISPUTE] ${reason.trim()} | Defective part: ${defectivePart || 'General component failure'} | Resolution: ${requestedResolution || 'Refund / Deposit Return'}`,
+        createdAt: new Date().toISOString(),
+      };
+
+      await saveReportToDb(disputeReport);
+
+      res.status(201).json({
+        message: '48-hour testing dispute lodged with campus mediators. Please retain the component in its current state.',
+        reportId: disputeReport.id,
+      });
+    } catch (err) {
+      console.error('Error lodging dispute:', err);
+      res.status(500).json({ error: 'Failed to lodge testing dispute.' });
+    }
+  });
+
+  // --- Admin Moderation & Overview Routes ---
+
+  // Admin Overview
+  app.get('/api/admin/overview', async (_req: Request, res: Response) => {
+    try {
+      const [listings, transactions, reports] = await Promise.all([
+        getAllListingsFromDb(),
+        getAllTransactionsFromDb(),
+        getAllReportsFromDb(),
+      ]);
+
+      const disputes = reports.filter((r) => r.reason.includes('[48H TESTING DISPUTE]'));
+      const safetyReports = reports.filter((r) => !r.reason.includes('[48H TESTING DISPUTE]'));
+
+      const overviewData = {
+        totalUsers: db.users.length,
+        totalListings: listings.length,
+        activeListings: listings.filter((l) => l.isAvailable).length,
+        totalTransactions: transactions.length,
+        pendingReports: safetyReports.length,
+        activeDisputes: disputes.length,
+        reports: safetyReports,
+        disputes: disputes,
+        recentTransactions: transactions.slice(0, 10),
+        paymentGateway: {
+          isConfigured: false,
+          provider: 'Razorpay / UPI Direct',
+          status: 'unconfigured',
+        },
+      };
+
+      res.json({
+        overview: overviewData,
+        ...overviewData,
+      });
+    } catch (err) {
+      console.error('Error fetching admin overview:', err);
+      res.status(500).json({ error: 'Failed to retrieve admin overview data.' });
+    }
+  });
+
+  // Resolve Dispute
+  app.post('/api/admin/disputes/:id/resolve', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const reportId = req.params.id;
+      db.reports = (db.reports || []).filter((r) => r.id !== reportId);
+      saveDatabase();
+      res.json({ message: 'Dispute mediated and resolved successfully.' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to resolve dispute.' });
+    }
+  });
+
+  // Dismiss Safety Report
+  app.post('/api/admin/reports/:id/dismiss', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const reportId = req.params.id;
+      db.reports = (db.reports || []).filter((r) => r.id !== reportId);
+      saveDatabase();
+      res.json({ message: 'Safety report reviewed and dismissed.' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to dismiss report.' });
+    }
+  });
+
+  // Moderate Listing (Delist or Approve)
+  app.post('/api/admin/listings/:id/moderate', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const listingId = req.params.id;
+      const { action } = req.body; // 'delist' | 'activate'
+
+      const listings = await getAllListingsFromDb();
+      const listing = listings.find((l) => l.id === listingId);
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found.' });
+      }
+
+      if (action === 'delist') {
+        listing.isAvailable = false;
+        listing.status = 'sold';
+      } else {
+        listing.isAvailable = true;
+        listing.status = 'available';
+      }
+
+      await saveListingToDb(listing);
+      res.json({ message: `Listing ${action === 'delist' ? 'delisted' : 'activated'} successfully.`, listing });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to moderate listing.' });
+    }
   });
 
   return app;

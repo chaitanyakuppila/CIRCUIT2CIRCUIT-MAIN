@@ -17,5 +17,33 @@ service cloud.firestore {
     match /c2c_listings/{listingId} {
       allow read, write: if true;
     }
+
+    match /c2c_conversations/{conversationId} {
+      allow read, write: if true;
+    }
+
+    match /c2c_messages/{messageId} {
+      allow read, write: if true;
+    }
+
+    match /c2c_reports/{reportId} {
+      allow read, write: if true;
+    }
+
+    match /c2c_requests/{requestId} {
+      allow read, write: if true;
+    }
+
+    match /c2c_guides/{guideId} {
+      allow read, write: if true;
+    }
+
+    match /c2c_care_requests/{requestId} {
+      allow read, write: if true;
+    }
+
+    match /c2c_transactions/{txId} {
+      allow read, write: if true;
+    }
   }
 }

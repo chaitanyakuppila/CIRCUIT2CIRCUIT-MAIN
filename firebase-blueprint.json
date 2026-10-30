@@ -38,6 +38,33 @@
         "createdAt": { "type": "string" }
       },
       "required": ["token", "userId"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Student in-app chat thread",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "listingId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "lastMessageText": { "type": "string" },
+        "lastMessageAt": { "type": "string" }
+      },
+      "required": ["id", "listingId", "sellerId", "buyerId"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Individual chat message in a conversation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "conversationId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "conversationId", "senderId", "text", "createdAt"]
     }
   },
   "firestore": {
@@ -52,6 +79,14 @@
     "/c2c_listings/{listingId}": {
       "schema": { "$ref": "#/entities/Listing" },
       "description": "Lab component listings collection"
+    },
+    "/c2c_conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Chat conversations collection"
+    },
+    "/c2c_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Chat messages collection"
     }
   }
 }

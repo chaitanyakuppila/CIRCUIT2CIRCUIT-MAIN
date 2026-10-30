@@ -11,12 +11,15 @@ import { api, getStoredToken } from './services/api';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
 import { Marketplace } from './components/Marketplace';
+import { StudentCareHelpdesk } from './components/StudentCareHelpdesk';
+import { EcoImpactDashboard } from './components/EcoImpactDashboard';
 import { Footer } from './components/Footer';
 import { ComponentDetailModal } from './components/ComponentDetailModal';
 import { ListItemModal } from './components/ListItemModal';
 import { AuthModal } from './components/AuthModal';
 import { StudentProfileModal } from './components/StudentProfileModal';
 import { ChatModal } from './components/ChatModal';
+import { AdminModal } from './components/AdminModal';
 import { AnimatedCircuitBackground } from './components/AnimatedCircuitBackground';
 import { CheckCircle2, X, ShieldCheck, PlusCircle } from 'lucide-react';
 
@@ -31,6 +34,7 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [pendingActionAfterAuth, setPendingActionAfterAuth] = useState<'openListItem' | null>(null);
 
   // OLX-Style In-App Chat
@@ -275,6 +279,7 @@ export default function App() {
             setActiveChatConversationId(null);
             setIsChatOpen(true);
           }}
+          onOpenAdmin={() => setIsAdminOpen(true)}
         />
 
         {/* Main Content */}
@@ -297,6 +302,16 @@ export default function App() {
             isRefreshing={isRefreshingListings}
             refreshError={refreshListingsError}
           />
+
+          {/* 3. Student Care Peer Mentorship Helpdesk & Pin Connections */}
+          <StudentCareHelpdesk
+            currentUser={currentUser}
+            onOpenAuth={handleOpenAuth}
+            showToast={showToast}
+          />
+
+          {/* 4. Campus Eco-Impact, E-Waste Prevention & Student Leaderboard */}
+          <EcoImpactDashboard />
         </main>
 
         {/* Concise Footer */}
@@ -377,6 +392,14 @@ export default function App() {
           initialConversationId={activeChatConversationId}
         />
       )}
+
+      {/* Sri Vasavi Campus Administration & 48-Hour Dispute Oversight Modal */}
+      <AdminModal
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+        currentUser={currentUser}
+        showToast={showToast}
+      />
 
     </div>
   );

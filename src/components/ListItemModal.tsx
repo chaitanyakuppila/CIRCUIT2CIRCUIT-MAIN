@@ -1,8 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { ComponentItem, ComponentCategory, TransactionType, BTechYear, StudentUser } from '../types';
-import { X, PlusCircle, AlertCircle, ShieldCheck, Lock, Info, Upload, Trash2, CheckCircle2, Image as ImageIcon } from 'lucide-react';
-import { validateListingPermissions } from '../utils/validation';
-import { api, resolveImageUrl } from '../services/api';
+import { ComponentItem, ComponentCategory, TransactionType, BTechYear, StudentUser, ProjectKitDetails } from '../types';
+import {
+  X,
+  PlusCircle,
+  AlertCircle,
+  ShieldCheck,
+  Lock,
+  Info,
+  Upload,
+  Trash2,
+  CheckCircle2,
+  Package,
+  Code2,
+  Repeat,
+  IndianRupee,
+  MapPin
+} from 'lucide-react';
+import { validateListingPermissions, CAMPUS_MEETING_LOCATIONS } from '../utils/validation';
+import { api } from '../services/api';
 import { SensorAutocomplete } from './SensorAutocomplete';
 
 interface ListItemModalProps {
@@ -30,14 +45,24 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
   const [sellingPrice, setSellingPrice] = useState('250');
   const [originalPrice, setOriginalPrice] = useState('500');
   const [rentalRate, setRentalRate] = useState('40');
+  const [depositAmount, setDepositAmount] = useState('100');
   const [rentalPeriod, setRentalPeriod] = useState<'day' | 'week' | 'month' | 'semester'>('week');
+  const [swapWishlist, setSwapWishlist] = useState('ESP8266 NodeMCU or MPU6050 Accelerometer');
 
   const [condition, setCondition] = useState<ComponentItem['condition']>('Like New (1 Lab Session)');
-  const [pickupLocation, setPickupLocation] = useState('ECE Department Ground Floor Foyer');
+  const [pickupLocation, setPickupLocation] = useState(CAMPUS_MEETING_LOCATIONS[0]);
   const [description, setDescription] = useState('');
-  const [specs, setSpecs] = useState('5V Operating Voltage, Pins Intact, Tested OK');
+  const [specs, setSpecs] = useState('5V Operating Voltage, Pins Intact, Tested OK in Lab');
   const [recommendedLabs, setRecommendedLabs] = useState('Microcontroller Lab, Mini Projects');
   const [targetYears, setTargetYears] = useState<BTechYear[]>(['1st Year', '2nd Year', '3rd Year']);
+
+  // Project Kit Extension
+  const [isProjectKit, setIsProjectKit] = useState(false);
+  const [kitParts, setKitParts] = useState('Arduino Uno R3 (qty 1), Breadboard MB-102 (qty 1), Dupont Jumpers (qty 20)');
+  const [kitCompatibility, setKitCompatibility] = useState('Arduino IDE 2.x, 5V USB logic');
+  const [kitSetupInstructions, setKitSetupInstructions] = useState('1. Connect board to breadboard\n2. Power with 5V USB cable\n3. Flash provided sketch');
+  const [kitSampleCode, setKitSampleCode] = useState('');
+  const [kitDomain, setKitDomain] = useState('Embedded Systems & IoT');
   
   // Photo Upload States
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
@@ -47,7 +72,6 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Populate form if editing or initial state
   useEffect(() => {
     if (editingItem) {
       setName(editingItem.name);
@@ -56,6 +80,7 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
       setSellingPrice(String(editingItem.priceNumeric || 250));
       setOriginalPrice(editingItem.originalPriceNumeric ? String(editingItem.originalPriceNumeric) : '');
       setRentalRate(String(editingItem.priceNumeric || 40));
+      setDepositAmount(editingItem.depositAmount ? String(editingItem.depositAmount) : '100');
       setRentalPeriod(editingItem.rentalPeriod || 'week');
       setCondition(editingItem.condition);
       setPickupLocation(editingItem.pickupLocation);
@@ -64,6 +89,14 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
       setRecommendedLabs(editingItem.recommendedLabs.join(', '));
       setTargetYears(editingItem.targetYears as BTechYear[]);
       setPhotoUrls(editingItem.photoUrls || (editingItem.photoUrl ? [editingItem.photoUrl] : []));
+      setIsProjectKit(Boolean(editingItem.isProjectKit));
+      if (editingItem.kitDetails) {
+        setKitParts(editingItem.kitDetails.partsList.map((p) => `${p.name} (qty ${p.qty})`).join(', '));
+        setKitCompatibility(editingItem.kitDetails.compatibility);
+        setKitSetupInstructions(editingItem.kitDetails.setupInstructions);
+        setKitSampleCode(editingItem.kitDetails.sampleCode || '');
+        setKitDomain(editingItem.kitDetails.targetDomain || 'Embedded Systems');
+      }
     } else if (currentUser) {
       if (currentUser.year === '4th Year') {
         setTransactionType('sell');
@@ -81,120 +114,68 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
 
   if (!isOpen) return null;
 
-  // 1. Not Authenticated State
+  // Not Authenticated Guard
   if (!currentUser) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md">
-        <div className="relative w-full max-w-md bg-slate-900/95 border border-slate-800 rounded-2xl shadow-2xl shadow-black/80 p-6 sm:p-8 space-y-5 text-slate-100 backdrop-blur-xl">
-          <button
-            onClick={onClose}
-            className="absolute top-5 right-5 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-            aria-label="Close modal"
-          >
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/85 backdrop-blur-md">
+        <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-4 text-slate-100 shadow-2xl">
+          <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
-
           <div className="w-12 h-12 rounded-2xl bg-emerald-950/80 border border-emerald-800/60 flex items-center justify-center text-emerald-400">
             <Lock className="w-6 h-6" />
           </div>
-
-          <div className="space-y-1.5">
-            <h3 className="text-xl font-extrabold text-white tracking-tight">Student Sign-In Required</h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              To list lab components, please sign in with your Sri Vasavi Engineering College student account so other students can verify your roll number on campus.
-            </p>
-          </div>
-
-          <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-slate-400">
-            <span>Sri Vasavi Engineering College (Tadepalligudem) student exchange.</span>
-          </div>
-
-          <div className="pt-2 flex flex-col gap-2.5">
-            <button
-              onClick={() => {
-                onClose();
-                onOpenAuth('signin');
-              }}
-              className="w-full py-2.5 text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl shadow-md transition-colors cursor-pointer"
-            >
-              Sign In with Roll Number →
-            </button>
-            <button
-              onClick={() => {
-                onClose();
-                onOpenAuth('register');
-              }}
-              className="w-full py-2.5 text-xs font-semibold text-violet-300 hover:bg-violet-900/60 bg-violet-950/60 border border-violet-800/60 rounded-xl transition-colors cursor-pointer"
-            >
-              Create New Student Account
-            </button>
-          </div>
+          <h3 className="text-xl font-extrabold text-white">Student Sign-In Required</h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Please sign in with your Sri Vasavi Engineering College student account to list electronics and project kits.
+          </p>
+          <button
+            onClick={() => {
+              onClose();
+              onOpenAuth('signin');
+            }}
+            className="w-full py-2.5 text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl"
+          >
+            Sign in with Sri Vasavi Credentials →
+          </button>
         </div>
       </div>
     );
   }
 
-  // 2. 1st Year Rule Check State
+  // 1st Year Restriction Rule
   if (currentUser.year === '1st Year') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md">
-        <div className="relative w-full max-w-md bg-slate-900/95 border border-slate-800 rounded-2xl shadow-2xl shadow-black/80 p-6 sm:p-8 space-y-5 text-slate-100 backdrop-blur-xl">
-          <button
-            onClick={onClose}
-            className="absolute top-5 right-5 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-            aria-label="Close modal"
-          >
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+        <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 text-slate-100 shadow-2xl space-y-4">
+          <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
-
-          <div className="w-12 h-12 rounded-2xl bg-violet-950/80 border border-violet-800/60 flex items-center justify-center text-violet-400">
+          <div className="w-12 h-12 rounded-2xl bg-amber-950 border border-amber-800 flex items-center justify-center text-amber-400">
             <Info className="w-6 h-6" />
           </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-violet-950/80 border border-violet-800/60 text-violet-300">
-                1st Year Student
-              </span>
-              <span className="text-xs text-slate-400 font-mono">{currentUser.rollNumber}</span>
-            </div>
-            <h3 className="text-xl font-bold text-white tracking-tight">Marketplace Rule Notice</h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              As a <strong>1st-year student</strong>, you are eligible to <strong>browse, rent, and receive free donations</strong> from senior students for your Basic Electrical & Physics labs.
-            </p>
-          </div>
-
-          <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-[11px] text-slate-400 space-y-1">
-            <p className="font-bold text-slate-200">Campus Listing Guidelines:</p>
-            <p>• <strong>2nd & 3rd Years:</strong> Can list components for <em>Rent</em> or <em>Donation</em>.</p>
-            <p>• <strong>4th Years:</strong> Can list components for <em>Sale</em> or <em>Donation</em>.</p>
-          </div>
-
-          <div className="pt-2">
-            <button
-              onClick={onClose}
-              className="w-full py-2.5 text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded-xl transition-colors cursor-pointer"
-            >
-              Browse Available Components →
-            </button>
-          </div>
+          <h3 className="text-lg font-bold text-white">1st-Year Student Notice</h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Per Circuit2Circuit marketplace rules, 1st-year students can borrow, rent, swap, or request donations from seniors. Listing items is reserved for 2nd & 3rd years (rentals, swaps, donations) and graduating 4th years (sales, swaps, donations).
+          </p>
+          <button onClick={onClose} className="w-full py-2.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white rounded-xl">
+            Browse Campus Listings
+          </button>
         </div>
       </div>
     );
   }
 
-  // Helper to downscale and compress high-resolution smartphone/camera photos before upload
+  // Compression helper
   const compressImageFile = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (readerEvent) => {
-        const rawResult = readerEvent.target?.result as string;
+      reader.onload = (event) => {
+        const rawResult = event.target?.result as string;
         const img = new Image();
         img.onload = () => {
+          let { width, height } = img;
           const MAX_DIM = 1200;
-          let width = img.width;
-          let height = img.height;
-
           if (width > MAX_DIM || height > MAX_DIM) {
             if (width > height) {
               height = Math.round((height * MAX_DIM) / width);
@@ -204,18 +185,13 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
               height = MAX_DIM;
             }
           }
-
           const canvas = document.createElement('canvas');
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            resolve(rawResult);
-            return;
-          }
+          if (!ctx) return resolve(rawResult);
           ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          resolve(compressedDataUrl);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
         };
         img.onerror = () => resolve(rawResult);
         img.src = rawResult;
@@ -225,57 +201,30 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
     });
   };
 
-  // Photo Upload Handler with client-side compression and resilient persistence
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
     setPhotoError(null);
     setUploadingPhoto(true);
 
     try {
-      const newUrls: string[] = [...photoUrls];
+      const newUrls = [...photoUrls];
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (!file.type.startsWith('image/')) {
-          setPhotoError(`"${file.name}" is not an accepted image format. Please select a JPG, PNG, or WebP photo.`);
-          continue;
-        }
-        if (file.size > 8 * 1024 * 1024) {
-          setPhotoError(`File "${file.name}" exceeds the maximum upload limit (8MB).`);
-          continue;
-        }
-
-        // Compress image client-side to ensure fast uploads and persistent storage
+        if (!file.type.startsWith('image/')) continue;
         const base64Data = await compressImageFile(file);
-        const uploadRes = await api.uploadPhoto(base64Data);
-        
-        if (uploadRes.photoUrl) {
-          newUrls.push(uploadRes.photoUrl);
-          
-          // Cache in localStorage to ensure uploaded photos persist on refresh even across ephemeral lambdas
-          const fileId = uploadRes.photoUrl.split('/').pop()?.split('?')[0];
-          if (fileId) {
-            try {
-              localStorage.setItem(`c2c_cached_img_${fileId}`, base64Data);
-            } catch (e) {}
-          }
-        }
+        const res = await api.uploadPhoto(base64Data);
+        if (res.photoUrl) newUrls.push(res.photoUrl);
       }
       setPhotoUrls(newUrls);
     } catch (err: any) {
-      setPhotoError(err.message || 'Failed to upload photo. Please try again.');
+      setPhotoError(err.message || 'Failed to upload photo.');
     } finally {
       setUploadingPhoto(false);
       e.target.value = '';
     }
   };
 
-  const handleRemovePhoto = (indexToRemove: number) => {
-    setPhotoUrls(photoUrls.filter((_, idx) => idx !== indexToRemove));
-  };
-
-  // Handle deal type selection with year constraints
   const handleTransactionChange = (type: TransactionType) => {
     const check = validateListingPermissions(currentUser.year, type);
     if (!check.isAllowed) {
@@ -286,30 +235,23 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
     setTransactionType(type);
   };
 
-  const handleYearToggle = (yr: BTechYear) => {
-    if (targetYears.includes(yr)) {
-      setTargetYears(targetYears.filter((y) => y !== yr));
-    } else {
-      setTargetYears([...targetYears, yr]);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    // Double check rules
     const check = validateListingPermissions(currentUser.year, transactionType);
     if (!check.isAllowed) {
       setErrorMsg(check.message);
       return;
     }
 
-    let iconType: ComponentItem['iconType'] = 'microcontroller';
-    if (category === 'sensors') iconType = 'sensor';
-    else if (category === 'passives') iconType = 'passive';
-    else if (category === 'prototyping') iconType = 'breadboard';
-    else if (category === 'power_motors') iconType = 'motor';
+    let iconType: ComponentItem['iconType'] = isProjectKit ? 'kit' : 'microcontroller';
+    if (!isProjectKit) {
+      if (category === 'sensors') iconType = 'sensor';
+      else if (category === 'passives') iconType = 'passive';
+      else if (category === 'prototyping') iconType = 'breadboard';
+      else if (category === 'power_motors') iconType = 'motor';
+    }
 
     const categoryLabels: Record<ComponentCategory, string> = {
       microcontrollers: 'Microcontrollers',
@@ -317,6 +259,7 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
       passives: 'Passive Components',
       prototyping: 'Prototyping & Lab Tools',
       power_motors: 'Power & Motors',
+      project_kits: 'Project Kits',
     };
 
     let priceNum = 0;
@@ -328,26 +271,50 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
     } else if (transactionType === 'rent') {
       priceNum = parseInt(rentalRate, 10) || 0;
       samplePriceStr = `₹${priceNum} / ${rentalPeriod}`;
+    } else if (transactionType === 'swap') {
+      samplePriceStr = `Swap: ${swapWishlist.trim() || 'Equal Value Sensor'}`;
+    }
+
+    // Construct Project Kit Details
+    let kitDetailsObj: ProjectKitDetails | undefined = undefined;
+    if (isProjectKit) {
+      const partsArr = kitParts
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => ({ name: p, qty: 1, tested: true }));
+
+      kitDetailsObj = {
+        partsList: partsArr.length > 0 ? partsArr : [{ name: name, qty: 1, tested: true }],
+        compatibility: kitCompatibility.trim() || 'Compatible with Arduino IDE 2.x & 5V/3.3V power',
+        setupInstructions: kitSetupInstructions.trim() || 'Connect components as labeled and flash sample sketch.',
+        sampleCode: kitSampleCode.trim() || undefined,
+        targetDomain: kitDomain.trim() || 'Embedded Systems & IoT',
+      };
     }
 
     const payload = {
       name: name.trim(),
-      category,
-      categoryLabel: categoryLabels[category],
+      category: isProjectKit ? 'project_kits' : category,
+      categoryLabel: isProjectKit ? 'Project Kits' : categoryLabels[category],
       transactionType,
       samplePrice: samplePriceStr,
       priceNumeric: priceNum,
       originalPriceNumeric: transactionType === 'sell' && originalPrice ? parseInt(originalPrice, 10) : undefined,
+      depositAmount: transactionType === 'rent' ? parseInt(depositAmount, 10) || 0 : undefined,
       rentalPeriod: transactionType === 'rent' ? rentalPeriod : undefined,
       condition,
       pickupLocation: pickupLocation.trim(),
-      description: description.trim() || 'Component tested and ready for campus student handover.',
+      description: description.trim() || 'Tested hardware ready for peer campus exchange at Sri Vasavi Engineering College.',
       specs: specs.split(',').map((s) => s.trim()).filter(Boolean),
       recommendedLabs: recommendedLabs.split(',').map((l) => l.trim()).filter(Boolean),
       targetYears: targetYears.length > 0 ? targetYears : ['All Years'],
       iconType,
       photoUrl: photoUrls[0] || undefined,
       photoUrls,
+      isProjectKit,
+      kitDetails: kitDetailsObj,
+      testingPeriodHours: 48,
     };
 
     setSubmitting(true);
@@ -361,406 +328,384 @@ export const ListItemModal: React.FC<ListItemModalProps> = ({
       }
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to publish component listing.');
+      setErrorMsg(err.message || 'Failed to submit listing.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Calculate savings percentage preview for Sale items
-  const selNum = parseInt(sellingPrice, 10) || 0;
-  const origNum = parseInt(originalPrice, 10) || 0;
-  const showSavings = transactionType === 'sell' && origNum > selNum && selNum > 0;
-  const savingsPct = showSavings ? Math.round(((origNum - selNum) / origNum) * 100) : 0;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-6 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
       <div 
-        className="relative w-full max-w-2xl bg-slate-900/95 border border-slate-800 rounded-2xl shadow-2xl shadow-black/80 p-4 sm:p-8 space-y-5 text-slate-100 my-auto max-h-[90vh] overflow-y-auto backdrop-blur-xl"
+        className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 sm:p-7 space-y-4 text-slate-100 my-auto max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-          aria-label="Close modal"
-        >
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white">
           <X className="w-5 h-5" />
         </button>
 
-        {/* Modal Header */}
         <div>
-          <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-800/60 text-xs font-mono font-bold text-emerald-300 mb-2">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Sri Vasavi Engineering College · {currentUser.year}</span>
-          </div>
-
-          <h2 className="text-2xl font-extrabold text-white tracking-tight">
-            {editingItem ? 'Edit Component Listing' : '＋ Add a Component Listing'}
+          <h2 className="text-xl sm:text-2xl font-extrabold text-white flex items-center gap-2">
+            <PlusCircle className="w-5 h-5 text-emerald-400" />
+            {editingItem ? 'Edit Marketplace Listing' : 'List Hardware / Project Kit'}
           </h2>
-          <p className="text-xs text-slate-300 mt-1">
-            Seller profile: <strong className="text-white font-bold">{currentUser.name}</strong> ({currentUser.rollNumber} · {currentUser.branch})
+          <p className="text-xs text-slate-400 mt-0.5">
+            Peer hardware exchange for Sri Vasavi Engineering College ({currentUser.name} • {currentUser.rollNumber})
           </p>
         </div>
 
-        {/* Error notification */}
         {errorMsg && (
-          <div className="p-3.5 bg-rose-950/80 border border-rose-800/80 rounded-xl flex items-start gap-2.5 text-xs text-rose-200">
-            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+          <div className="p-3 bg-rose-950/80 border border-rose-800 text-rose-200 rounded-xl text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        {/* Listing Form */}
-        <form onSubmit={handleSubmit} className="space-y-5 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           
-          {/* Component Name */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-slate-200 font-bold block">
-                Component Name & Model *
-              </label>
-              <span className="text-[10px] text-violet-400 font-mono">
-                💡 Autocomplete active (Try "ultra", "dht", "pir", "soil", "uno")
-              </span>
+          {/* Project Kit Toggle */}
+          <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package className="w-4 h-4 text-emerald-400" />
+              <div>
+                <span className="font-bold text-white block">Complete Pre-Tested Project Kit?</span>
+                <span className="text-[11px] text-slate-400">Bundle sensors, boards, wiring diagrams, and sample code together</span>
+              </div>
             </div>
-            <SensorAutocomplete
-              required
-              value={name}
-              onChange={(val) => setName(val)}
-              onSelectVerified={(sensor) => {
-                setName(sensor.name);
-                setCategory(sensor.category);
-                if (sensor.defaultSpecs && sensor.defaultSpecs.length > 0) {
-                  setSpecs(sensor.defaultSpecs.join(', '));
-                }
-                if (sensor.defaultLabs && sensor.defaultLabs.length > 0) {
-                  setRecommendedLabs(sensor.defaultLabs.join(', '));
-                }
-                if (!description || description.trim() === '') {
-                  setDescription(sensor.defaultDescription);
-                }
-              }}
-              placeholder="e.g. HC-SR04 Ultrasonic Sensor, DHT11 Temperature Sensor..."
-            />
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isProjectKit}
+                onChange={(e) => setIsProjectKit(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-400"></div>
+            </label>
           </div>
 
-          {/* Photo Upload Section */}
-          <div className="space-y-2 p-4 bg-slate-950/80 border border-slate-800 rounded-xl">
-            <div className="flex items-center justify-between">
-              <label className="text-slate-200 font-bold flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-emerald-400" />
-                <span>Upload Item Photos</span>
+          {/* Component Title & Category */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold mb-1 text-slate-200">
+                {isProjectKit ? 'Project Kit Title' : 'Component Name'}
               </label>
-              <span className="text-[11px] text-slate-400">
-                {photoUrls.length > 0 ? `${photoUrls.length} photo(s) selected` : 'Max 5MB per photo'}
-              </span>
+              <input
+                type="text"
+                required
+                placeholder={isProjectKit ? 'e.g. Smart IoT Weather Station Kit' : 'e.g. Arduino Uno R3'}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+              />
             </div>
 
-            {/* Photo Previews */}
-            {photoUrls.length > 0 && (
-              <div className="flex flex-wrap gap-3 py-2">
-                {photoUrls.map((url, idx) => (
-                  <div key={idx} className="relative w-20 h-20 rounded-xl border border-slate-800 overflow-hidden bg-slate-950 shadow-md group">
-                    <img src={resolveImageUrl(url) || url} alt={`Upload preview ${idx + 1}`} className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePhoto(idx)}
-                      className="absolute top-1 right-1 p-1 bg-slate-950/80 hover:bg-rose-600 text-white rounded-full transition-colors cursor-pointer"
-                      title="Remove photo"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                    {idx === 0 && (
-                      <span className="absolute bottom-1 left-1 bg-emerald-500 text-slate-950 text-[9px] font-bold px-1 rounded">
-                        Main
-                      </span>
-                    )}
-                  </div>
-                ))}
+            {!isProjectKit && (
+              <div>
+                <label className="block font-semibold mb-1 text-slate-200">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                >
+                  <option value="microcontrollers">Microcontrollers</option>
+                  <option value="sensors">Sensors & Modules</option>
+                  <option value="prototyping">Breadboards & Prototyping</option>
+                  <option value="passives">Passive Components & ICs</option>
+                  <option value="power_motors">Motors & Power</option>
+                </select>
               </div>
             )}
-
-            {/* File Input trigger button */}
-            <label className="flex items-center justify-center gap-2 py-3 px-4 bg-slate-900 border border-dashed border-slate-700 hover:border-emerald-400 rounded-xl cursor-pointer text-slate-300 hover:text-emerald-300 transition-colors">
-              <Upload className="w-4 h-4 text-emerald-400" />
-              <span className="font-semibold text-xs">
-                {uploadingPhoto ? 'Processing photo upload...' : 'Click or drop real item photos here'}
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFileUpload}
-                disabled={uploadingPhoto}
-                className="hidden"
-              />
-            </label>
-
-            {photoError && (
-              <span className="text-[11px] text-rose-400 font-medium block">{photoError}</span>
-            )}
-            <span className="text-[10px] text-slate-400 block">
-              *Upload real photos of your specific lab component. If no photo is uploaded, <strong>Photo unavailable</strong> will be displayed.
-            </span>
           </div>
 
-          {/* Transaction Mode Selector Enforcing Year Rules */}
+          {/* Transaction Type Selector: Rent, Sell, Swap, Donate */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-slate-200 font-bold block">
-                Listing Mode (Enforced for {currentUser.year}) *
-              </label>
-              <span className="text-[11px] text-slate-400">
-                {currentUser.year === '4th Year'
-                  ? '4th Years: Sell or Donate'
-                  : '2nd & 3rd Years: Rent or Donate'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              {/* Rent Button */}
+            <label className="block font-semibold mb-1.5 text-slate-200">Exchange Type</label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
-                disabled={currentUser.year === '4th Year'}
                 onClick={() => handleTransactionChange('rent')}
-                className={`py-2.5 px-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
+                className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                   transactionType === 'rent'
-                    ? 'bg-sky-950/80 border-sky-500/80 text-sky-300 shadow-md shadow-sky-950/40'
-                    : currentUser.year === '4th Year'
-                    ? 'bg-slate-950/40 border-slate-900 text-slate-600 cursor-not-allowed'
-                    : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                    ? 'bg-sky-950 text-sky-300 border-sky-600'
+                    : 'bg-slate-950 text-slate-400 border-slate-800'
                 }`}
               >
                 For Rent
               </button>
 
-              {/* Sell Button */}
-              <button
-                type="button"
-                disabled={currentUser.year !== '4th Year'}
-                onClick={() => handleTransactionChange('sell')}
-                className={`py-2.5 px-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
-                  transactionType === 'sell'
-                    ? 'bg-blue-950/80 border-blue-500/80 text-blue-300 shadow-md shadow-blue-950/40'
-                    : currentUser.year !== '4th Year'
-                    ? 'bg-slate-950/40 border-slate-900 text-slate-600 cursor-not-allowed'
-                    : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
-                }`}
-              >
-                For Sale (4th Years)
-              </button>
-
-              {/* Free Donation Button */}
               <button
                 type="button"
                 onClick={() => handleTransactionChange('donate')}
-                className={`py-2.5 px-3 rounded-xl border text-center font-bold transition-all cursor-pointer ${
+                className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                   transactionType === 'donate'
-                    ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300 shadow-md shadow-emerald-950/40'
-                    : 'bg-slate-950/80 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+                    ? 'bg-emerald-950 text-emerald-300 border-emerald-600'
+                    : 'bg-slate-950 text-slate-400 border-slate-800'
                 }`}
               >
                 Free Donation
               </button>
+
+              <button
+                type="button"
+                onClick={() => handleTransactionChange('swap')}
+                className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                  transactionType === 'swap'
+                    ? 'bg-amber-950 text-amber-300 border-amber-600'
+                    : 'bg-slate-950 text-slate-400 border-slate-800'
+                }`}
+              >
+                Component Swap
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTransactionChange('sell')}
+                className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                  transactionType === 'sell'
+                    ? 'bg-violet-950 text-violet-300 border-violet-600'
+                    : 'bg-slate-950 text-slate-400 border-slate-800'
+                }`}
+              >
+                For Sale {currentUser.year === '4th Year' ? '(Senior)' : ''}
+              </button>
             </div>
           </div>
 
-          {/* Price & Rates Configuration */}
-          {transactionType === 'sell' && (
-            <div className="p-4 bg-blue-950/40 border border-blue-800/60 rounded-xl space-y-3">
-              <span className="text-xs font-bold text-blue-300 block">Sale Price Details (4th Year Liquidations)</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-200 font-semibold block mb-1">
-                    Original / Retail Price (₹)
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 500"
-                    value={originalPrice}
-                    onChange={(e) => setOriginalPrice(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white font-mono focus:outline-hidden focus:border-blue-500"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">What you originally paid when new</span>
-                </div>
-
-                <div>
-                  <label className="text-slate-200 font-semibold block mb-1">
-                    Second-Hand Selling Price (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="e.g. 250"
-                    value={sellingPrice}
-                    onChange={(e) => setSellingPrice(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white font-mono font-bold focus:outline-hidden focus:border-blue-500"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">Your student resale price</span>
-                </div>
-              </div>
-
-              {showSavings && (
-                <div className="flex items-center gap-2 text-xs text-emerald-300 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1.5 rounded-lg font-bold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Buyer Savings Preview: {savingsPct}% OFF (Original ₹{origNum} → Selling ₹{selNum})</span>
-                </div>
-              )}
-            </div>
-          )}
-
+          {/* Dynamic Pricing / Rent / Swap Details */}
           {transactionType === 'rent' && (
-            <div className="p-4 bg-sky-950/40 border border-sky-800/60 rounded-xl space-y-3">
-              <span className="text-xs font-bold text-sky-300 block">Rental Rate Details</span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-200 font-semibold block mb-1">
-                    Rental Rate (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="e.g. 40"
-                    value={rentalRate}
-                    onChange={(e) => setRentalRate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white font-mono font-bold focus:outline-hidden focus:border-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-200 font-semibold block mb-1">
-                    Rental Period *
-                  </label>
-                  <select
-                    value={rentalPeriod}
-                    onChange={(e) => setRentalPeriod(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs font-semibold text-white focus:outline-hidden focus:border-sky-500 cursor-pointer"
-                  >
-                    <option value="day" className="bg-slate-900 text-white">per day</option>
-                    <option value="week" className="bg-slate-900 text-white">per week</option>
-                    <option value="month" className="bg-slate-900 text-white">per month</option>
-                    <option value="semester" className="bg-slate-900 text-white">per semester</option>
-                  </select>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-950 rounded-xl border border-slate-800">
+              <div>
+                <label className="block text-slate-400 mb-1">Rent Rate (₹)</label>
+                <input
+                  type="number"
+                  min="5"
+                  value={rentalRate}
+                  onChange={(e) => setRentalRate(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Rental Period</label>
+                <select
+                  value={rentalPeriod}
+                  onChange={(e) => setRentalPeriod(e.target.value as any)}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                >
+                  <option value="day">per day</option>
+                  <option value="week">per week</option>
+                  <option value="month">per month</option>
+                  <option value="semester">per semester</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Refundable Deposit (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                />
               </div>
             </div>
           )}
 
-          {transactionType === 'donate' && (
-            <div className="p-3 bg-emerald-950/50 border border-emerald-800/60 rounded-xl text-xs text-emerald-300 font-medium">
-              🎁 Listing is marked as <strong>Free (Donation)</strong> for junior students.
+          {transactionType === 'sell' && (
+            <div className="grid grid-cols-2 gap-3 p-3 bg-slate-950 rounded-xl border border-slate-800">
+              <div>
+                <label className="block text-slate-400 mb-1">Selling Price (₹)</label>
+                <input
+                  type="number"
+                  min="10"
+                  value={sellingPrice}
+                  onChange={(e) => setSellingPrice(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1">Original Price (₹)</label>
+                <input
+                  type="number"
+                  min="10"
+                  value={originalPrice}
+                  onChange={(e) => setOriginalPrice(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                />
+              </div>
             </div>
           )}
 
-          {/* Category & Condition Row */}
+          {transactionType === 'swap' && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+              <label className="block text-slate-400 mb-1">What hardware would you like in exchange?</label>
+              <input
+                type="text"
+                placeholder="e.g. ESP32 NodeMCU, MPU6050 Accelerometer, or 1602 I2C Display"
+                value={swapWishlist}
+                onChange={(e) => setSwapWishlist(e.target.value)}
+                className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white"
+              />
+            </div>
+          )}
+
+          {/* PROJECT KIT EXTRA FIELDS */}
+          {isProjectKit && (
+            <div className="p-3 bg-slate-950 rounded-xl border border-emerald-500/30 space-y-3">
+              <span className="font-bold text-emerald-400 block">Kit Specifications & Code</span>
+              <div>
+                <label className="block text-slate-400 mb-1">Parts Checklist (Comma-separated)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. ESP32 (qty 1), DHT11 (qty 1), OLED 0.96 (qty 1), 400-tie Breadboard (qty 1)"
+                  value={kitParts}
+                  onChange={(e) => setKitParts(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1">Compatibility & Power</label>
+                  <input
+                    type="text"
+                    value={kitCompatibility}
+                    onChange={(e) => setKitCompatibility(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">Target Tech Domain</label>
+                  <input
+                    type="text"
+                    value={kitDomain}
+                    onChange={(e) => setKitDomain(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">Setup Instructions</label>
+                <textarea
+                  rows={2}
+                  value={kitSetupInstructions}
+                  onChange={(e) => setKitSetupInstructions(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1">Tested Working Code Snippet</label>
+                <textarea
+                  rows={3}
+                  placeholder="// Paste working Arduino sketch..."
+                  value={kitSampleCode}
+                  onChange={(e) => setKitSampleCode(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg font-mono text-emerald-300 text-[11px]"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Condition & Pickup Location */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-slate-200 font-bold block mb-1">
-                Category *
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as any)}
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white focus:outline-hidden focus:border-emerald-500 cursor-pointer"
-              >
-                <option value="microcontrollers" className="bg-slate-900 text-white">Microcontrollers & Dev Boards</option>
-                <option value="sensors" className="bg-slate-900 text-white">Sensors & Modules</option>
-                <option value="passives" className="bg-slate-900 text-white">Passive Components & ICs</option>
-                <option value="prototyping" className="bg-slate-900 text-white">Prototyping & Lab Tools</option>
-                <option value="power_motors" className="bg-slate-900 text-white">Power Supplies & Motors</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-slate-200 font-bold block mb-1">
-                Component Condition *
-              </label>
+              <label className="block font-semibold mb-1 text-slate-200">Hardware Condition</label>
               <select
                 value={condition}
                 onChange={(e) => setCondition(e.target.value as any)}
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold text-white focus:outline-hidden focus:border-emerald-500 cursor-pointer"
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
               >
-                <option value="Brand New / Sealed" className="bg-slate-900 text-white">Brand New / Sealed</option>
-                <option value="Like New (1 Lab Session)" className="bg-slate-900 text-white">Like New (1 Lab Session)</option>
-                <option value="Gently Used (Tested OK)" className="bg-slate-900 text-white">Gently Used (Tested OK)</option>
-                <option value="Functional Spares" className="bg-slate-900 text-white">Functional Spares</option>
+                <option value="Brand New / Sealed">Brand New / Sealed</option>
+                <option value="Like New (1 Lab Session)">Like New (1 Lab Session)</option>
+                <option value="Gently Used (Tested OK)">Gently Used (Tested OK)</option>
+                <option value="Functional Spares">Functional Spares</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-semibold mb-1 text-slate-200">Campus Meeting Location</label>
+              <select
+                value={pickupLocation}
+                onChange={(e) => setPickupLocation(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
+              >
+                {CAMPUS_MEETING_LOCATIONS.map((loc) => (
+                  <option key={loc} value={loc}>
+                    {loc}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          {/* Target Years */}
+          {/* Photo Upload Zone */}
           <div>
-            <label className="text-slate-200 font-bold block mb-1">
-              Target Junior Years
-            </label>
-            <div className="flex flex-wrap gap-2 pt-1">
-              {(['1st Year', '2nd Year', '3rd Year', '4th Year'] as BTechYear[]).map((yr) => (
-                <button
-                  type="button"
-                  key={yr}
-                  onClick={() => handleYearToggle(yr)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-colors ${
-                    targetYears.includes(yr)
-                      ? 'bg-violet-950/80 border-violet-500/80 text-violet-300 font-bold shadow-xs'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {yr}
-                </button>
-              ))}
+            <label className="block font-semibold mb-1 text-slate-200">Item Photos</label>
+            <div className="flex items-center gap-3">
+              <label className="px-3.5 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-200 flex items-center gap-2 cursor-pointer transition-colors">
+                <Upload className="w-4 h-4 text-emerald-400" />
+                <span>{uploadingPhoto ? 'Uploading...' : 'Upload Real Photo'}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+              <span className="text-slate-400 text-[11px]">Real hardware photos build student trust</span>
             </div>
+
+            {photoUrls.length > 0 && (
+              <div className="flex gap-2 mt-2 overflow-x-auto py-1">
+                {photoUrls.map((url, idx) => (
+                  <div key={idx} className="relative group w-14 h-14 shrink-0">
+                    <img src={url} alt="upload" className="w-full h-full object-cover rounded-lg border border-slate-800" />
+                    <button
+                      type="button"
+                      onClick={() => setPhotoUrls(photoUrls.filter((_, i) => i !== idx))}
+                      className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full p-0.5 shadow-md"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Campus Handover Spot */}
+          {/* Description */}
           <div>
-            <label className="text-slate-200 font-bold block mb-1">
-              Campus Handover Location *
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. ECE Ground Floor Foyer, Central Library Entrance, Canteen..."
-              value={pickupLocation}
-              onChange={(e) => setPickupLocation(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-emerald-500"
-            />
-          </div>
-
-          {/* Description & Labs */}
-          <div>
-            <label className="text-slate-200 font-bold block mb-1">
-              Description & Notes for Students
-            </label>
+            <label className="block font-semibold mb-1 text-slate-200">Description</label>
             <textarea
               rows={2}
-              placeholder="e.g. Used for our 3rd sem lab. All pins tested and working..."
+              required
+              placeholder="Include details about lab usage, pin conditions, or what lab experiments this was used for..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-emerald-500"
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white"
             />
           </div>
 
-          {/* Form Actions */}
-          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-3 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="w-full sm:w-auto px-4 py-3 min-h-[44px] text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer text-center"
+              className="px-4 py-2 text-slate-400 hover:text-white"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="w-full sm:w-auto px-6 py-3 min-h-[44px] text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 text-center flex items-center justify-center"
+              className="px-5 py-2 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-950/40"
             >
-              {submitting ? 'Publishing...' : (editingItem ? 'Save Changes' : '＋ Publish Component Listing')}
+              {submitting ? 'Publishing...' : editingItem ? 'Save Changes' : 'Publish Listing'}
             </button>
           </div>
 
         </form>
-
       </div>
     </div>
   );

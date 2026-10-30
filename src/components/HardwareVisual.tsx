@@ -21,7 +21,6 @@ export const HardwareVisual: React.FC<HardwareVisualProps> = ({ name, photoUrl }
     setImageError(false);
     setIsLoaded(false);
 
-    // If already in browser cache and completed
     if (imgRef.current && imgRef.current.complete) {
       if (imgRef.current.naturalWidth > 0) {
         setIsLoaded(true);
@@ -31,16 +30,20 @@ export const HardwareVisual: React.FC<HardwareVisualProps> = ({ name, photoUrl }
     }
   }, [resolvedPhotoUrl]);
 
-  // Timeout fallback: if image doesn't load within 3.5 seconds, cleanly show Photo unavailable
+  // Watchdog timer: prevent cards from getting stuck indefinitely on "Loading photo..." if network stalls or fails
   useEffect(() => {
     if (!resolvedPhotoUrl || isLoaded || imageError) return;
 
-    const timeoutTimer = setTimeout(() => {
-      setImageError(true);
-    }, 3500);
+    const watchdogTimer = setTimeout(() => {
+      if (!isLoaded) {
+        setImageError(true);
+      }
+    }, 5000);
 
-    return () => clearTimeout(timeoutTimer);
+    return () => clearTimeout(watchdogTimer);
   }, [resolvedPhotoUrl, isLoaded, imageError]);
+
+
 
   // Ref callback to catch already cached images synchronously on mount
   const handleImageRef = (node: HTMLImageElement | null) => {

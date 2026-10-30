@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Eye, EyeOff, AlertCircle, Info, ShieldCheck } from 'lucide-react';
-import { validateVasaviRollNumber, validateMobileNumber, validatePassword } from '../utils/validation';
+import { X, Eye, EyeOff, AlertCircle, Info, ShieldCheck, Mail, Lock, User, Phone, CheckCircle2 } from 'lucide-react';
+import { validateVasaviRollNumber, validateMobileNumber, validatePassword, validateVasaviEmail, OFFICIAL_EMAIL_DOMAIN } from '../utils/validation';
 import { api } from '../services/api';
 import { StudentUser } from '../types';
 
@@ -21,16 +21,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const [mode, setMode] = useState<'signin' | 'register'>(initialMode);
   
-  // Sign-in state
-  const [loginRoll, setLoginRoll] = useState('');
+  // Sign-in state: accepts either Roll Number OR @srivasaviengg.ac.in Email
+  const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotNotice, setShowForgotNotice] = useState(false);
 
   // Registration state
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [rollNumber, setRollNumber] = useState('');
-  const [branch, setBranch] = useState(branches[0] || 'Artificial Intelligence & Data Science (AI & DS)');
+  const [branch, setBranch] = useState(branches[0] || 'Computer Science and Artificial Intelligence (CAI)');
   const [year, setYear] = useState<'1st Year' | '2nd Year' | '3rd Year' | '4th Year'>('2nd Year');
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +43,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const rollInputRef = useRef<HTMLInputElement | null>(null);
+  const identifierInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setMode(initialMode);
@@ -50,7 +51,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setShowForgotNotice(false);
     if (isOpen) {
       setTimeout(() => {
-        rollInputRef.current?.focus();
+        identifierInputRef.current?.focus();
       }, 80);
     }
   }, [initialMode, isOpen]);
@@ -60,6 +61,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setBranch(branches[0]);
     }
   }, [branches, branch]);
+
+  // When roll number changes during registration, auto-suggest official email if user hasn't typed a custom prefix
+  const handleRollChange = (val: string) => {
+    const clean = val.toUpperCase().trim();
+    setRollNumber(clean);
+    if (!email || email.includes('@srivasaviengg.ac.in')) {
+      setEmail(clean ? `${clean.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}` : '');
+    }
+    if (errorMsg) setErrorMsg(null);
+  };
 
   // Handle escape key to close
   useEffect(() => {
@@ -79,9 +90,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     setErrorMsg(null);
 
-    const rollCheck = validateVasaviRollNumber(loginRoll);
-    if (!rollCheck.isValid) {
-      setErrorMsg(rollCheck.error || 'Please enter a valid Sri Vasavi roll number (e.g. 25A81A4300).');
+    const identifier = loginIdentifier.trim();
+    if (!identifier) {
+      setErrorMsg('Please enter your Sri Vasavi roll number or official college email.');
       return;
     }
 
@@ -92,11 +103,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setLoading(true);
     try {
-      const res = await api.login(rollCheck.normalized, loginPassword);
+      const res = await api.login(identifier, loginPassword);
       onAuthSuccess(res.user, res.message);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Unable to sign in. Please check your details and try again.');
+      setErrorMsg(err.message || 'Unable to sign in. Please verify your roll number / email and password.');
     } finally {
       setLoading(false);
     }
@@ -114,6 +125,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const rollCheck = validateVasaviRollNumber(rollNumber);
     if (!rollCheck.isValid) {
       setErrorMsg(rollCheck.error || 'Invalid roll number format.');
+      return;
+    }
+
+    const emailCheck = validateVasaviEmail(email);
+    if (!emailCheck.isValid) {
+      setErrorMsg(emailCheck.error || `Official college email ending with @${OFFICIAL_EMAIL_DOMAIN} is required.`);
       return;
     }
 
@@ -138,6 +155,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const res = await api.register({
         name: name.trim(),
+        email: emailCheck.normalized,
         rollNumber: rollCheck.normalized,
         branch,
         year,
@@ -154,26 +172,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const fillQuickDemo = (roll: string, pw: string) => {
-    setLoginRoll(roll);
-    setLoginPassword(pw);
-    setErrorMsg(null);
-  };
-
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md overflow-y-auto"
       onClick={onClose}
     >
-      {/* 
-        Centered, compact sign-in card with dark, slightly transparent surface, 
-        subtle borders, strong text contrast, and soft outline.
-      */}
       <div 
         role="dialog"
         aria-modal="true"
         aria-labelledby={mode === 'signin' ? 'signin-heading' : 'register-heading'}
-        className="relative w-full max-w-[430px] bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl shadow-black/90 ring-1 ring-white/5 p-5 sm:p-8 text-slate-100 transition-all my-4 sm:my-8 max-h-[90vh] overflow-y-auto overflow-x-hidden"
+        className="relative w-full max-w-[460px] bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl shadow-black/95 ring-1 ring-white/10 p-5 sm:p-7 text-slate-100 transition-all my-auto max-h-[92vh] overflow-y-auto overflow-x-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
@@ -181,33 +189,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           type="button"
           onClick={onClose}
           aria-label="Close dialog"
-          className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/80 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-400 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
+          className="absolute top-3.5 right-3.5 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-400 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Brand Zone with Circuit2Circuit Logo */}
-        <div className="text-center space-y-2.5 mb-5">
+        {/* Brand Zone */}
+        <div className="text-center space-y-2 mb-4">
           <div className="flex justify-center">
             <img
               src="/assets/aistudio/CIRCUIT2CIRCUIT_7c14473a.jpeg"
               alt="Circuit2Circuit Logo"
-              className="w-12 h-12 rounded-xl object-contain border border-slate-800 shadow-md"
+              className="w-11 h-11 rounded-xl object-contain border border-slate-800 shadow-md"
             />
           </div>
 
           <div>
             <h1 
               id={mode === 'signin' ? 'signin-heading' : 'register-heading'}
-              className="text-2xl sm:text-2xl font-bold text-white tracking-tight"
+              className="text-xl sm:text-2xl font-extrabold text-white tracking-tight"
             >
-              {mode === 'signin' ? 'Welcome back' : 'Create an account'}
+              {mode === 'signin' ? 'Welcome back' : 'Join Sri Vasavi Exchange'}
             </h1>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
               {mode === 'signin'
                 ? 'Sign in to access student lab component rentals and campus exchanges'
-                : 'Register your Sri Vasavi student profile to join the campus exchange'}
+                : 'Exclusive electronics exchange for Sri Vasavi Engineering College'}
             </p>
+          </div>
+
+          {/* College Domain Badge */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-950/80 border border-blue-800/60 text-[11px] font-medium text-blue-300">
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span>Sri Vasavi Engineering College (Autonomous)</span>
           </div>
         </div>
 
@@ -216,18 +230,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <div 
             role="alert" 
             aria-live="polite" 
-            className="mb-5 p-3.5 bg-rose-950/70 border border-rose-800/80 rounded-xl flex items-start gap-2.5 text-xs text-rose-200"
+            className="mb-4 p-3 bg-rose-950/70 border border-rose-800/80 rounded-xl flex items-start gap-2.5 text-xs text-rose-200"
           >
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
             <span className="leading-relaxed">{errorMsg}</span>
           </div>
         )}
 
-        {/* Password Assistance Notice (when "Forgot password?" is clicked) */}
+        {/* Password Assistance Notice */}
         {mode === 'signin' && showForgotNotice && (
           <div 
             role="status" 
-            className="mb-5 p-3.5 bg-slate-950/90 border border-slate-700/80 rounded-xl text-xs text-slate-300 space-y-2 animate-in fade-in duration-200"
+            className="mb-4 p-3 bg-slate-950/90 border border-slate-700/80 rounded-xl text-xs text-slate-300 space-y-2 animate-in fade-in duration-200"
           >
             <div className="flex items-center justify-between">
               <span className="font-semibold text-white flex items-center gap-1.5">
@@ -243,59 +257,63 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </button>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              If you forgot your password or need a new account for roll number <span className="font-mono text-emerald-300">{loginRoll || 'your roll number'}</span>, click below to register:
+              If you forgot your password or need a new account for <span className="font-mono text-emerald-300">{loginIdentifier || 'your roll number'}</span>, you can register fresh credentials:
             </p>
             <button
               type="button"
               onClick={() => {
-                setRollNumber(loginRoll);
+                if (loginIdentifier.includes('@')) {
+                  setEmail(loginIdentifier);
+                } else if (loginIdentifier) {
+                  setRollNumber(loginIdentifier);
+                }
                 setMode('register');
                 setShowForgotNotice(false);
                 setErrorMsg(null);
               }}
               className="mt-1 px-3 py-1.5 bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1"
             >
-              Create fresh account for {loginRoll || 'your roll number'}
+              Register fresh account credentials
             </button>
           </div>
         )}
 
         {/* SIGN IN FORM */}
         {mode === 'signin' ? (
-          <form onSubmit={handleLogin} noValidate className="space-y-4">
-            {/* Roll Number Field */}
+          <form onSubmit={handleLogin} noValidate className="space-y-3.5">
+            {/* Roll Number or Email Field */}
             <div className="space-y-1.5">
               <label 
-                htmlFor="rollNumber" 
+                htmlFor="loginIdentifier" 
                 className="block text-xs font-semibold text-slate-200"
               >
-                Roll Number
+                Roll Number or College Email
               </label>
-              <input
-                ref={rollInputRef}
-                id="rollNumber"
-                name="rollNumber"
-                type="text"
-                required
-                autoComplete="username"
-                spellCheck="false"
-                placeholder="25A81A4300"
-                value={loginRoll}
-                maxLength={10}
-                onChange={(e) => {
-                  setLoginRoll(e.target.value.toUpperCase());
-                  if (errorMsg) setErrorMsg(null);
-                }}
-                aria-invalid={Boolean(errorMsg)}
-                aria-describedby="roll-hint"
-                className="w-full px-3.5 py-2.5 min-h-[44px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white uppercase font-mono tracking-wider placeholder:text-slate-600 placeholder:font-mono focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors"
-              />
-              <p id="roll-hint" className="text-[11px] text-slate-400">
-                Hint: Sri Vasavi Engineering College format (e.g. <span className="font-mono text-slate-300">25A81A4300</span>)
+              <div className="relative">
+                <input
+                  ref={identifierInputRef}
+                  id="loginIdentifier"
+                  name="loginIdentifier"
+                  type="text"
+                  required
+                  autoComplete="username"
+                  spellCheck="false"
+                  placeholder="25A81A4300 or student@srivasaviengg.ac.in"
+                  value={loginIdentifier}
+                  onChange={(e) => {
+                    setLoginIdentifier(e.target.value);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                  aria-invalid={Boolean(errorMsg)}
+                  className="w-full px-3.5 py-2.5 min-h-[44px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Hint: Sri Vasavi roll format (e.g. <span className="font-mono text-slate-300">25A81A4300</span>) or <span className="font-mono text-slate-300">@srivasaviengg.ac.in</span>
               </p>
             </div>
 
-            {/* Password Field with Show Password & Forgot Password */}
+            {/* Password Field */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label 
@@ -307,7 +325,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowForgotNotice(!showForgotNotice)}
-                  className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer focus:outline-hidden focus-visible:underline min-h-[32px] flex items-center"
+                  className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer min-h-[32px] flex items-center"
                 >
                   Forgot password?
                 </button>
@@ -330,31 +348,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   className="w-full pl-3.5 pr-12 py-2.5 min-h-[44px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-colors"
                 />
 
-                {/* Show password toggle with min 44px tap target */}
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  title={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute inset-y-0 right-0 w-11 h-full flex items-center justify-center text-slate-400 hover:text-slate-200 focus:outline-hidden focus-visible:text-white transition-colors cursor-pointer"
+                  className="absolute inset-y-0 right-0 w-11 h-full flex items-center justify-center text-slate-400 hover:text-slate-200 cursor-pointer"
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4" aria-hidden="true" />
-                  ) : (
-                    <Eye className="w-4 h-4" aria-hidden="true" />
-                  )}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Action Buttons: Sign in & Create account side by side */}
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 pt-1">
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full min-h-[44px] px-3 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 flex items-center justify-center text-center"
+                className="w-full py-2.5 px-4 min-h-[44px] bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-emerald-950/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5"
               >
-                {loading ? 'Signing in...' : 'Sign in'}
+                {loading ? (
+                  <span className="inline-block w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'Sign in'
+                )}
               </button>
 
               <button
@@ -362,197 +378,198 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 onClick={() => {
                   setMode('register');
                   setErrorMsg(null);
-                  const path = window.location.pathname.toLowerCase();
-                  if (path === '/signin' || path === '/login') {
-                    window.history.pushState(null, '', '/register');
-                  }
+                  setShowForgotNotice(false);
                 }}
-                className="w-full min-h-[44px] px-2.5 sm:px-3 bg-slate-800/90 hover:bg-slate-700/90 active:bg-slate-900 text-white hover:text-emerald-300 font-bold text-xs sm:text-sm rounded-xl border border-slate-700 hover:border-emerald-400/80 shadow-md transition-all cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 flex items-center justify-center text-center"
+                className="w-full py-2.5 px-4 min-h-[44px] bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm rounded-xl border border-slate-700 transition-colors cursor-pointer flex items-center justify-center"
               >
                 Create account
               </button>
             </div>
-
-            {/* New Student Account Prompt */}
-            <div className="pt-3.5 border-t border-slate-800/80 text-center">
-              <p className="text-xs text-slate-400 leading-relaxed">
-                New Sri Vasavi student?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('register');
-                    setErrorMsg(null);
-                  }}
-                  className="font-semibold text-emerald-400 hover:text-emerald-300 underline cursor-pointer"
-                >
-                  Register your account
-                </button>
-              </p>
-            </div>
           </form>
         ) : (
           /* REGISTRATION FORM */
-          <form onSubmit={handleRegister} noValidate className="space-y-4">
+          <form onSubmit={handleRegister} noValidate className="space-y-3">
             {/* Full Name */}
             <div className="space-y-1">
               <label htmlFor="regName" className="block text-xs font-semibold text-slate-200">
-                Student Full Name *
+                Full Name
               </label>
               <input
                 id="regName"
                 type="text"
                 required
-                placeholder="e.g. Praveen Kumar"
+                placeholder="e.g. Chaitanya Varma"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3.5 py-2.5 min-h-[44px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                className="w-full px-3.5 py-2 min-h-[40px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
               />
             </div>
 
-            {/* Roll Number & BTech Year */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Roll Number & Year */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <label htmlFor="regRoll" className="block text-xs font-semibold text-slate-200">
-                  Roll Number *
+                  Roll Number (Sri Vasavi)
                 </label>
                 <input
                   id="regRoll"
                   type="text"
                   required
+                  maxLength={10}
                   placeholder="25A81A4300"
                   value={rollNumber}
-                  maxLength={10}
-                  onChange={(e) => setRollNumber(e.target.value.toUpperCase())}
-                  className="w-full px-3.5 py-2.5 min-h-[44px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white uppercase font-mono tracking-wider placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                  onChange={(e) => handleRollChange(e.target.value)}
+                  className="w-full px-3.5 py-2 min-h-[40px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white font-mono uppercase placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
                 />
-                <span className="text-[10px] text-slate-500 font-mono block">e.g. 25A81A4300</span>
               </div>
 
               <div className="space-y-1">
                 <label htmlFor="regYear" className="block text-xs font-semibold text-slate-200">
-                  BTech Year *
+                  BTech Year
                 </label>
                 <select
                   id="regYear"
                   value={year}
                   onChange={(e) => setYear(e.target.value as any)}
-                  className="w-full px-3 py-2.5 min-h-[44px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 cursor-pointer"
+                  className="w-full px-3 py-2 min-h-[40px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white focus:outline-hidden focus:border-emerald-400"
                 >
-                  <option value="1st Year" className="bg-slate-900 text-white">1st Year (Freshman)</option>
-                  <option value="2nd Year" className="bg-slate-900 text-white">2nd Year (Core Labs)</option>
-                  <option value="3rd Year" className="bg-slate-900 text-white">3rd Year (IoT/Mini Project)</option>
-                  <option value="4th Year" className="bg-slate-900 text-white">4th Year (Senior Capstone)</option>
+                  <option value="1st Year">1st Year (Junior)</option>
+                  <option value="2nd Year">2nd Year</option>
+                  <option value="3rd Year">3rd Year</option>
+                  <option value="4th Year">4th Year (Senior / Capstone)</option>
                 </select>
               </div>
             </div>
 
-            {/* Branch Selection */}
+            {/* Official College Email */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label htmlFor="regEmail" className="block text-xs font-semibold text-slate-200">
+                  Official College Email
+                </label>
+                <span className="text-[10px] text-emerald-400 font-mono">@{OFFICIAL_EMAIL_DOMAIN}</span>
+              </div>
+              <input
+                id="regEmail"
+                type="email"
+                required
+                placeholder={`rollnumber@${OFFICIAL_EMAIL_DOMAIN}`}
+                value={email}
+                onChange={(e) => setEmail(e.target.value.toLowerCase().trim())}
+                className="w-full px-3.5 py-2 min-h-[40px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white font-mono placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              />
+              <p className="text-[10px] text-slate-400">
+                Restricted to verified students of Sri Vasavi Engineering College.
+              </p>
+            </div>
+
+            {/* Branch Selector */}
             <div className="space-y-1">
               <label htmlFor="regBranch" className="block text-xs font-semibold text-slate-200">
-                BTech Branch *
+                BTech Branch
               </label>
               <select
                 id="regBranch"
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
-                className="w-full px-3 py-2.5 min-h-[44px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 cursor-pointer"
+                className="w-full px-3 py-2 min-h-[40px] bg-slate-950/90 border border-slate-800 rounded-xl text-xs sm:text-sm text-white focus:outline-hidden focus:border-emerald-400"
               >
                 {branches.map((b) => (
-                  <option key={b} value={b} className="bg-slate-900 text-white">
+                  <option key={b} value={b}>
                     {b}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Mobile Number */}
+            {/* Mobile Number & Privacy Toggle */}
             <div className="space-y-1">
               <label htmlFor="regMobile" className="block text-xs font-semibold text-slate-200">
-                Mobile Number *
+                10-Digit Mobile Number
               </label>
-              <div className="flex items-center gap-2">
-                <span className="px-3 min-h-[44px] flex items-center justify-center bg-slate-950 border border-slate-800 rounded-xl text-slate-400 font-mono text-xs shrink-0">
-                  +91
-                </span>
+              <input
+                id="regMobile"
+                type="tel"
+                required
+                maxLength={10}
+                placeholder="9876543210"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value.replace(/[^0-9]/g, ''))}
+                className="w-full px-3.5 py-2 min-h-[40px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white font-mono placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400"
+              />
+              <label className="flex items-start gap-2 pt-1 cursor-pointer">
                 <input
-                  id="regMobile"
-                  type="tel"
-                  required
-                  placeholder="9876543210"
-                  value={mobile}
-                  maxLength={10}
-                  onChange={(e) => setMobile(e.target.value)}
-                  className="flex-1 px-3.5 py-2.5 min-h-[44px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white font-mono placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                  type="checkbox"
+                  checked={shareMobilePublicly}
+                  onChange={(e) => setShareMobilePublicly(e.target.checked)}
+                  className="mt-0.5 rounded border-slate-700 bg-slate-950 text-emerald-400 focus:ring-emerald-400 cursor-pointer"
                 />
-              </div>
+                <span className="text-[11px] text-slate-400 leading-tight">
+                  Display my phone number on my listings (uncheck to keep strictly private; you can still coordinate via in-app chat)
+                </span>
+              </label>
             </div>
 
-            {/* Passwords */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Password & Confirm Password */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <label htmlFor="regPassword" className="block text-xs font-semibold text-slate-200">
-                  Password *
+                  Password
                 </label>
                 <div className="relative">
                   <input
                     id="regPassword"
                     type={regShowPassword ? 'text' : 'password'}
                     required
-                    placeholder="Min 6 chars"
+                    placeholder="Min 6 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-3.5 pr-10 py-2.5 min-h-[44px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                    className="w-full pl-3.5 pr-10 py-2 min-h-[40px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white focus:outline-hidden focus:border-emerald-400"
                   />
                   <button
                     type="button"
                     onClick={() => setRegShowPassword(!regShowPassword)}
-                    aria-label={regShowPassword ? 'Hide password' : 'Show password'}
-                    className="absolute inset-y-0 right-0 w-10 h-full flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
+                    className="absolute inset-y-0 right-0 w-9 h-full flex items-center justify-center text-slate-400 hover:text-slate-200 cursor-pointer"
                   >
-                    {regShowPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {regShowPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
 
               <div className="space-y-1">
                 <label htmlFor="regConfirmPassword" className="block text-xs font-semibold text-slate-200">
-                  Confirm *
+                  Confirm Password
                 </label>
                 <input
                   id="regConfirmPassword"
                   type={regShowPassword ? 'text' : 'password'}
                   required
-                  placeholder="Repeat password"
+                  placeholder="Re-enter password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 min-h-[44px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-hidden focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+                  className="w-full px-3.5 py-2 min-h-[40px] bg-slate-950/90 border border-slate-800 rounded-xl text-sm text-white focus:outline-hidden focus:border-emerald-400"
                 />
               </div>
             </div>
 
-            {/* Privacy Checkbox */}
-            <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
-              <label className="flex items-start gap-2.5 cursor-pointer min-h-[36px]">
-                <input
-                  type="checkbox"
-                  checked={shareMobilePublicly}
-                  onChange={(e) => setShareMobilePublicly(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded border-slate-700 text-emerald-500 focus:ring-emerald-500 shrink-0"
-                />
-                <span className="text-[11px] text-slate-300 leading-relaxed">
-                  Allow my phone number to be visible on my listings (otherwise, chat is strictly private).
-                </span>
-              </label>
+            {/* Privacy notice banner */}
+            <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-center gap-2 text-[11px] text-slate-400">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Passwords are cryptographically hashed. Phone numbers remain hidden by default.</span>
             </div>
 
-            {/* Registration Action Buttons: Create account & Sign in side by side */}
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 pt-1">
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-3 pt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full min-h-[44px] px-3 bg-emerald-400 hover:bg-emerald-300 active:bg-emerald-500 text-slate-950 font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-60 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 flex items-center justify-center text-center"
+                className="w-full py-2.5 px-4 min-h-[44px] bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-emerald-950/40 transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center"
               >
-                {loading ? 'Creating...' : 'Create account'}
+                {loading ? (
+                  <span className="inline-block w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  'Complete registration'
+                )}
               </button>
 
               <button
@@ -560,19 +577,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 onClick={() => {
                   setMode('signin');
                   setErrorMsg(null);
-                  const path = window.location.pathname.toLowerCase();
-                  if (path === '/register' || path === '/signup') {
-                    window.history.pushState(null, '', '/signin');
-                  }
                 }}
-                className="w-full min-h-[44px] px-2.5 sm:px-3 bg-slate-800/90 hover:bg-slate-700/90 active:bg-slate-900 text-white hover:text-emerald-300 font-bold text-xs sm:text-sm rounded-xl border border-slate-700 hover:border-emerald-400/80 shadow-md transition-all cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 flex items-center justify-center text-center"
+                className="w-full py-2.5 px-4 min-h-[44px] bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm rounded-xl border border-slate-700 transition-colors cursor-pointer flex items-center justify-center"
               >
-                Sign in
+                Back to Sign in
               </button>
             </div>
           </form>
         )}
-
       </div>
     </div>
   );

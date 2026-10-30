@@ -11,6 +11,42 @@
       "passwordHash": "c7bf959069018bde4375006d4836c274:caef637b7ed914614b1d19644378a784d7d45c3c8eddff089c16fc06b390d2871b7e180c449d7743095f5ea2e6fa2b9ff7d817aba229ae324be5fc8396183a9c",
       "createdAt": "2026-10-29T11:12:51.252Z",
       "rollNumberUpper": "25A81A4388"
+    },
+    {
+      "id": "usr-1793374164247-6052",
+      "name": "Seller Student",
+      "rollNumber": "25A81A4391",
+      "branch": "Computer Science and Artificial Intelligence (CAI)",
+      "mobile": "9876543210",
+      "year": "3rd Year",
+      "shareMobilePublicly": true,
+      "passwordHash": "08e954b42c009f02da8d326246a0a41d:5500323bdd765cd08b6b59392baf41d9631e9c22b1bf5b51d795e0c92f8a9217de71b1d31c0db28ea3562919d70393375ae5cc5a313973f82dfaf3d48be33a7f",
+      "createdAt": "2026-10-30T15:29:24.316Z",
+      "rollNumberUpper": "25A81A4391"
+    },
+    {
+      "id": "usr-1793374164990-566",
+      "name": "Buyer Student",
+      "rollNumber": "25A81A4392",
+      "branch": "Computer Science and Artificial Intelligence (CAI)",
+      "mobile": "9876543211",
+      "year": "2nd Year",
+      "shareMobilePublicly": false,
+      "passwordHash": "744d096af89f4009ecebfbdf0c1fe35a:19d113cca6436a991a1e4eb2e6cdd7431a85ef736388f1a572d48bf56a8d3f635fc1baac380025ea2a7803ded7ebd3d3e777a18a00349717a31f2a4e680cc6ee",
+      "createdAt": "2026-10-30T15:29:25.078Z",
+      "rollNumberUpper": "25A81A4392"
+    },
+    {
+      "id": "usr-1793374165323-8750",
+      "name": "Unrelated Student",
+      "rollNumber": "25A81A4393",
+      "branch": "Mechanical Engineering (MECH)",
+      "mobile": "9876543212",
+      "year": "1st Year",
+      "shareMobilePublicly": false,
+      "passwordHash": "9abb51b23f40cd711dd76f53b9edc54a:4528ecdfb941c2cc35120f2c44f09a49b5b8e826a088e5292dbbc6fe6579f9e10c96ff807d52f0b98e794fd9a5f4c1e490c1d52a8953e19a1525f515780754e0",
+      "createdAt": "2026-10-30T15:29:25.396Z",
+      "rollNumberUpper": "25A81A4393"
     }
   ],
   "sessions": [
@@ -18,9 +54,95 @@
       "token": "c2c_eyJ1c2VySWQiOiJ1c3ItMTc5MzI3MjM3MTE5MC04MDgiLCJyb2xsTnVtYmVyIjoiMjVBODFBNDM4OCIsIm5hbWUiOiJDQUkgU3R1ZGVudCIsImJyYW5jaCI6IkNvbXB1dGVyIFNjaWVuY2UgYW5kIEFydGlmaWNpYWwgSW50ZWxsaWdlbmNlIChDQUkpIiwieWVhciI6IjJuZCBZZWFyIiwiZXhwIjoxNzk1ODY0MzcxNzQxfQ.5oj2ttyuC1tXg6oi_1RzZrJv9E9T9UUkkEjS2DlgAkU",
       "userId": "usr-1793272371190-808",
       "createdAt": "2026-10-29T11:12:51.741Z"
+    },
+    {
+      "token": "c2c_eyJ1c2VySWQiOiJ1c3ItMTc5MzM3NDA0NjExMy01MjgiLCJyb2xsTnVtYmVyIjoiMjVBODFBNDM5MSIsIm5hbWUiOiJTZWxsZXIgU3R1ZGVudCIsImJyYW5jaCI6IkNvbXB1dGVyIFNjaWVuY2UgYW5kIEFydGlmaWNpYWwgSW50ZWxsaWdlbmNlIChDQUkpIiwieWVhciI6IjNyZCBZZWFyIiwiZXhwIjoxNzk1OTY2MDQ2Njg0fQ.YB9byPKNx2Ju_ZjdchDtxCQrY_0J4bsEwHx6Xj2H8ak",
+      "userId": "usr-1793374046113-528",
+      "createdAt": "2026-10-30T15:27:26.685Z"
+    },
+    {
+      "token": "c2c_eyJ1c2VySWQiOiJ1c3ItMTc5MzM3NDA0NjkwNC02MzAzIiwicm9sbE51bWJlciI6IjI1QTgxQTQzOTIiLCJuYW1lIjoiQnV5ZXIgU3R1ZGVudCIsImJyYW5jaCI6IkNvbXB1dGVyIFNjaWVuY2UgYW5kIEFydGlmaWNpYWwgSW50ZWxsaWdlbmNlIChDQUkpIiwieWVhciI6IjJuZCBZZWFyIiwiZXhwIjoxNzk1OTY2MDQ3MDc2fQ.If84ACSpdkE1Dcs7Wes4kOQuInykwBGfCGi4z25x-A8",
+      "userId": "usr-1793374046904-6303",
+      "createdAt": "2026-10-30T15:27:27.076Z"
+    },
+    {
+      "token": "c2c_eyJ1c2VySWQiOiJ1c3ItMTc5MzM3NDA0NzI1NC02NTAyIiwicm9sbE51bWJlciI6IjI1QTgxQTQzOTMiLCJuYW1lIjoiVW5yZWxhdGVkIFN0dWRlbnQiLCJicmFuY2giOiJNZWNoYW5pY2FsIEVuZ2luZWVyaW5nIChNRUNIKSIsInllYXIiOiIxc3QgWWVhciIsImV4cCI6MTc5NTk2NjA0NzQyN30.Xf4NG67ceT_ex_iP9IcA_rYeSPFvLqiwdwxy4vqaL4Q",
+      "userId": "usr-1793374047254-6502",
+      "createdAt": "2026-10-30T15:27:27.427Z"
+    },
+    {
+      "token": "c2c_eyJ1c2VySWQiOiJ1c3ItMTc5MzM3NDE2NDI0Ny02MDUyIiwicm9sbE51bWJlciI6IjI1QTgxQTQzOTEiLCJuYW1lIjoiU2VsbGVyIFN0dWRlbnQiLCJicmFuY2giOiJDb21wdXRlciBTY2llbmNlIGFuZCBBcnRpZmljaWFsIEludGVsbGlnZW5jZSAoQ0FJKSIsInllYXIiOiIzcmQgWWVhciIsImV4cCI6MTc5NTk2NjE2NDc3OH0.OG5iaqfQL8xZowdr6SJPeHR7dgTHgJgjpGHkifMW67g",
+      "userId": "usr-1793374164247-6052",
+      "createdAt": "2026-10-30T15:29:24.778Z"
+    },
+    {
+      "token": "c2c_eyJ1c2VySWQiOiJ1c3ItMTc5MzM3NDE2NDk5MC01NjYiLCJyb2xsTnVtYmVyIjoiMjVBODFBNDM5MiIsIm5hbWUiOiJCdXllciBTdHVkZW50IiwiYnJhbmNoIjoiQ29tcHV0ZXIgU2NpZW5jZSBhbmQgQXJ0aWZpY2lhbCBJbnRlbGxpZ2VuY2UgKENBSSkiLCJ5ZWFyIjoiMm5kIFllYXIiLCJleHAiOjE3OTU5NjYxNjUxNDh9.ko2r77IaUcJ7Y7VMpnmAqxhgVktONBZQTiwvMZE_jUE",
+      "userId": "usr-1793374164990-566",
+      "createdAt": "2026-10-30T15:29:25.148Z"
+    },
+    {
+      "token": "c2c_eyJ1c2VySWQiOiJ1c3ItMTc5MzM3NDE2NTMyMy04NzUwIiwicm9sbE51bWJlciI6IjI1QTgxQTQzOTMiLCJuYW1lIjoiVW5yZWxhdGVkIFN0dWRlbnQiLCJicmFuY2giOiJNZWNoYW5pY2FsIEVuZ2luZWVyaW5nIChNRUNIKSIsInllYXIiOiIxc3QgWWVhciIsImV4cCI6MTc5NTk2NjE2NTQ2Nn0.1UmAf5-4F4_N-sGCGK9ICiyv2EYj8GnI2RqwNa-EmIo",
+      "userId": "usr-1793374165323-8750",
+      "createdAt": "2026-10-30T15:29:25.466Z"
     }
   ],
   "listings": [
+    {
+      "id": "c2c-1793374165628-48",
+      "name": "Raspberry Pi 4 Model B (4GB)",
+      "category": "Single Board Computers",
+      "categoryLabel": "Microcontrollers",
+      "transactionType": "rent",
+      "samplePrice": "₹0 / week",
+      "priceNumeric": 0,
+      "condition": "Excellent",
+      "sellerId": "usr-1793374164247-6052",
+      "sellerName": "Seller Student",
+      "sellerRollNumber": "25A81A4391",
+      "sellerYear": "3rd Year",
+      "sellerDept": "Computer Science and Artificial Intelligence (CAI)",
+      "sellerMobile": "9876543210",
+      "sellerShareMobile": true,
+      "pickupLocation": "Campus Central Library / Department Foyer",
+      "description": "Used for embedded AI lab semester project.",
+      "specs": [],
+      "recommendedLabs": [],
+      "targetYears": [
+        "All Years"
+      ],
+      "isAvailable": true,
+      "dateListed": "Just now",
+      "iconType": "raspberry-pi",
+      "photoUrls": []
+    },
+    {
+      "id": "c2c-1793374047612-415",
+      "name": "Raspberry Pi 4 Model B (4GB)",
+      "category": "Single Board Computers",
+      "categoryLabel": "Microcontrollers",
+      "transactionType": "rent",
+      "samplePrice": "₹0 / week",
+      "priceNumeric": 0,
+      "condition": "Excellent",
+      "sellerId": "usr-1793374046113-528",
+      "sellerName": "Seller Student",
+      "sellerRollNumber": "25A81A4391",
+      "sellerYear": "3rd Year",
+      "sellerDept": "Computer Science and Artificial Intelligence (CAI)",
+      "sellerMobile": "9876543210",
+      "sellerShareMobile": true,
+      "pickupLocation": "Campus Central Library / Department Foyer",
+      "description": "Used for embedded AI lab semester project.",
+      "specs": [],
+      "recommendedLabs": [],
+      "targetYears": [
+        "All Years"
+      ],
+      "isAvailable": true,
+      "dateListed": "Just now",
+      "iconType": "raspberry-pi",
+      "photoUrls": []
+    },
     {
       "id": "c2c-1792846033254-135",
       "name": "Arduino Nano V3 with Cable",
@@ -507,6 +629,52 @@
   ],
   "conversations": [
     {
+      "buyerBranch": "Computer Science and Artificial Intelligence (CAI)",
+      "sellerBranch": "Computer Science and Artificial Intelligence (CAI)",
+      "createdAt": "2026-10-30T15:29:26.236Z",
+      "buyerRollNumber": "25A81A4392",
+      "lastMessageAt": "2026-10-30T15:29:28.606Z",
+      "sellerId": "usr-1793374164247-6052",
+      "listingCategory": "Microcontrollers",
+      "sellerRollNumber": "25A81A4391",
+      "isBlocked": false,
+      "listingTransactionType": "rent",
+      "lastMessageText": "Shared verified mobile number for campus handover: +91 9876543210",
+      "id": "conv-1793374166236-369",
+      "listingTitle": "Raspberry Pi 4 Model B (4GB)",
+      "buyerName": "Buyer Student",
+      "listingId": "c2c-1793374165628-48",
+      "sellerName": "Seller Student",
+      "reportCount": 0,
+      "buyerId": "usr-1793374164990-566",
+      "buyerYear": "2nd Year",
+      "listingPrice": "₹0 / week",
+      "listingIconType": "raspberry-pi"
+    },
+    {
+      "lastMessageAt": "2026-10-30T15:27:30.345Z",
+      "buyerName": "Buyer Student",
+      "sellerId": "usr-1793374046113-528",
+      "sellerBranch": "Computer Science and Artificial Intelligence (CAI)",
+      "buyerRollNumber": "25A81A4392",
+      "buyerId": "usr-1793374046904-6303",
+      "buyerBranch": "Computer Science and Artificial Intelligence (CAI)",
+      "listingTransactionType": "rent",
+      "listingId": "c2c-1793374047612-415",
+      "listingCategory": "Microcontrollers",
+      "buyerYear": "2nd Year",
+      "createdAt": "2026-10-30T15:27:28.005Z",
+      "reportCount": 0,
+      "sellerRollNumber": "25A81A4391",
+      "listingTitle": "Raspberry Pi 4 Model B (4GB)",
+      "sellerName": "Seller Student",
+      "id": "conv-1793374048005-28",
+      "listingIconType": "raspberry-pi",
+      "isBlocked": false,
+      "listingPrice": "₹0 / week",
+      "lastMessageText": "Shared verified mobile number for campus handover: +91 9876543210"
+    },
+    {
       "id": "conv-1792847348228-492",
       "listingId": "c2c-001",
       "listingTitle": "Arduino Uno R3 Microcontroller Board (with USB A-B Cable)",
@@ -569,6 +737,120 @@
       "createdAt": "2026-10-24T13:09:20.692Z",
       "readBy": [
         "usr-vasavi-01"
+      ]
+    },
+    {
+      "senderName": "Buyer Student",
+      "text": "Hi Seller, is the Raspberry Pi 4 available this Friday?",
+      "type": "text",
+      "createdAt": "2026-10-30T15:27:28.005Z",
+      "senderRollNumber": "25A81A4392",
+      "conversationId": "conv-1793374048005-28",
+      "id": "msg-1793374048005-934",
+      "senderId": "usr-1793374046904-6303",
+      "readBy": [
+        "usr-1793374046904-6303",
+        "usr-1793374046113-528"
+      ]
+    },
+    {
+      "id": "msg-1793374048718-41",
+      "conversationId": "conv-1793374048005-28",
+      "senderId": "usr-1793374046904-6303",
+      "senderName": "Buyer Student",
+      "senderRollNumber": "25A81A4392",
+      "text": "I can pick it up from the library foyer during lunch break.",
+      "type": "text",
+      "createdAt": "2026-10-30T15:27:28.718Z",
+      "readBy": [
+        "usr-1793374046904-6303",
+        "usr-1793374046113-528"
+      ]
+    },
+    {
+      "id": "msg-1793374049829-692",
+      "conversationId": "conv-1793374048005-28",
+      "senderId": "usr-1793374046113-528",
+      "senderName": "Seller Student",
+      "senderRollNumber": "25A81A4391",
+      "text": "Yes! Library foyer at 1:30 PM works perfectly for me.",
+      "type": "text",
+      "createdAt": "2026-10-30T15:27:29.829Z",
+      "readBy": [
+        "usr-1793374046113-528",
+        "usr-1793374046904-6303"
+      ]
+    },
+    {
+      "senderName": "Seller Student",
+      "type": "phone_share",
+      "text": "Shared verified mobile number for campus handover: +91 9876543210",
+      "readBy": [
+        "usr-1793374046113-528",
+        "usr-1793374046904-6303"
+      ],
+      "senderRollNumber": "25A81A4391",
+      "id": "msg-1793374050345-683",
+      "sharedPhone": "9876543210",
+      "senderId": "usr-1793374046113-528",
+      "createdAt": "2026-10-30T15:27:30.345Z",
+      "conversationId": "conv-1793374048005-28"
+    },
+    {
+      "conversationId": "conv-1793374166236-369",
+      "id": "msg-1793374166236-511",
+      "senderName": "Buyer Student",
+      "senderRollNumber": "25A81A4392",
+      "readBy": [
+        "usr-1793374164990-566",
+        "usr-1793374164247-6052"
+      ],
+      "createdAt": "2026-10-30T15:29:26.236Z",
+      "senderId": "usr-1793374164990-566",
+      "type": "text",
+      "text": "Hi Seller, is the Raspberry Pi 4 available this Friday?"
+    },
+    {
+      "senderRollNumber": "25A81A4392",
+      "senderId": "usr-1793374164990-566",
+      "readBy": [
+        "usr-1793374164990-566",
+        "usr-1793374164247-6052"
+      ],
+      "conversationId": "conv-1793374166236-369",
+      "text": "I can pick it up from the library foyer during lunch break.",
+      "type": "text",
+      "senderName": "Buyer Student",
+      "createdAt": "2026-10-30T15:29:26.880Z",
+      "id": "msg-1793374166880-241"
+    },
+    {
+      "id": "msg-1793374168081-415",
+      "conversationId": "conv-1793374166236-369",
+      "senderId": "usr-1793374164247-6052",
+      "senderName": "Seller Student",
+      "senderRollNumber": "25A81A4391",
+      "text": "Yes! Library foyer at 1:30 PM works perfectly for me.",
+      "type": "text",
+      "createdAt": "2026-10-30T15:29:28.081Z",
+      "readBy": [
+        "usr-1793374164247-6052",
+        "usr-1793374164990-566"
+      ]
+    },
+    {
+      "id": "msg-1793374168606-775",
+      "conversationId": "conv-1793374166236-369",
+      "senderId": "usr-1793374164247-6052",
+      "senderName": "Seller Student",
+      "senderRollNumber": "25A81A4391",
+      "text": "Shared verified mobile number for campus handover: +91 9876543210",
+      "type": "phone_share",
+      "sharedPhone": "9876543210",
+      "createdAt": "2026-10-30T15:29:28.606Z",
+      "readBy": [
+        "usr-1793374164247-6052",
+        "usr-1793374164990-566"
       ]
     }
   ],

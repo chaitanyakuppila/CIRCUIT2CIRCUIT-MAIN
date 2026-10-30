@@ -1,4 +1,15 @@
-import { ComponentItem, ItemRequest, StudentUser, Conversation, ChatMessage } from '../types';
+import {
+  ComponentItem,
+  ItemRequest,
+  StudentUser,
+  Conversation,
+  ChatMessage,
+  StudentCareGuide,
+  StudentCareRequest,
+  EcoImpactMetrics,
+  LeaderboardEntry,
+  TransactionRecord,
+} from '../types';
 
 const TOKEN_KEY = 'c2c_vasavi_auth_token';
 
@@ -31,7 +42,6 @@ export function getApiUrl(endpoint: string): string {
   }
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   if (API_BASE_URL) {
-    // If API_BASE_URL ends with /api and endpoint starts with /api, prevent duplicate /api/api
     if (API_BASE_URL.endsWith('/api') && cleanEndpoint.startsWith('/api')) {
       return `${API_BASE_URL}${cleanEndpoint.substring(4)}`;
     }
@@ -46,25 +56,19 @@ export function resolveImageUrl(url?: string): string | undefined {
     return url;
   }
 
-  // Strip localhost/127.0.0.1 prefixes so deployed Vercel and mobile devices never attempt to query local loopback
+  // Strip localhost/127.0.0.1 prefixes
   let normalizedUrl = url.trim().replace(/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i, '');
 
   if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
     return normalizedUrl;
   }
 
-  // Normalize any legacy or Vite source paths to public assets
-  if (normalizedUrl.startsWith('/src/assets/images/')) {
-    normalizedUrl = normalizedUrl.replace('/src/assets/images/', '/assets/images/');
-  } else if (normalizedUrl.startsWith('src/assets/images/')) {
-    normalizedUrl = normalizedUrl.replace('src/assets/images/', '/assets/images/');
-  }
+  normalizedUrl = normalizedUrl.replace(/^\/?src\/assets\//, '/assets/').replace(/\/src\/assets\//g, '/assets/');
 
   if (!normalizedUrl.startsWith('/') && !normalizedUrl.startsWith('data:')) {
     normalizedUrl = `/${normalizedUrl}`;
   }
 
-  // Check client-side persistent cache for student-uploaded photos
   if (normalizedUrl.startsWith('/uploads/') || normalizedUrl.startsWith('/api/uploads/')) {
     const fileId = normalizedUrl.split('/').pop()?.split('?')[0];
     if (fileId) {
@@ -113,15 +117,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     if (response.status === 401) {
-      throw new Error(
-        data.error || 'Authentication required. Please sign in with your college credentials.'
-      );
+      throw new Error(data.error || 'Authentication required. Please sign in with your college credentials.');
     }
     if (response.status === 404) {
-      throw new Error(
-        data.error ||
-          `Backend endpoint not found (404) at ${targetUrl}. If using an external AWS backend, please verify VITE_API_URL.`
-      );
+      throw new Error(data.error || `Backend endpoint not found (404) at ${targetUrl}.`);
     }
     throw new Error(data.error || `Request failed with status ${response.status}`);
   }
@@ -138,6 +137,7 @@ export const api = {
   // Auth
   async register(data: {
     name: string;
+    email: string;
     rollNumber: string;
     branch: string;
     mobile: string;
@@ -154,10 +154,10 @@ export const api = {
     return res;
   },
 
-  async login(rollNumber: string, password: string): Promise<{ message: string; token: string; user: StudentUser }> {
+  async login(identifier: string, password: string): Promise<{ message: string; token: string; user: StudentUser }> {
     const res = await request<{ message: string; token: string; user: StudentUser }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ rollNumber, password }),
+      body: JSON.stringify({ rollNumber: identifier, password }),
     });
     setStoredToken(res.token);
     return res;
@@ -201,6 +201,20 @@ export const api = {
     });
   },
 
+  async updateListingStatus(id: string, status: string, extra?: any): Promise<{ message: string; listing: ComponentItem; transaction?: TransactionRecord }> {
+    return request(`/api/listings/${id}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status, ...extra }),
+    });
+  },
+
+  async raiseDispute(listingId: string, data: { reason: string; expectedResolution: string; labTestResults?: string }): Promise<{ message: string; dispute: any }> {
+    return request(`/api/listings/${listingId}/dispute`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   async uploadPhoto(imageDataBase64: string): Promise<{ message: string; photoUrl: string }> {
     return request('/api/upload', {
       method: 'POST',
@@ -219,7 +233,7 @@ export const api = {
   },
 
   // Requests
-  async submitRequest(data: { itemId: string; preferredTime: string; notes?: string }): Promise<{ message: string; request: ItemRequest }> {
+  async submitRequest(data: { itemId: string; preferredTime: string; handoverLocation?: string; notes?: string }): Promise<{ message: string; request: ItemRequest }> {
     return request('/api/requests', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -257,7 +271,7 @@ export const api = {
     return request(`/api/conversations/${id}`);
   },
 
-  async sendMessage(id: string, text: string, type: 'text' | 'phone_share' | 'offer' = 'text', extra?: { offerAmount?: string; sharedPhone?: string }): Promise<{ message: ChatMessage; conversation: Conversation }> {
+  async sendMessage(id: string, text: string, type: 'text' | 'phone_share' | 'offer' | 'location_suggest' = 'text', extra?: { offerAmount?: string; sharedPhone?: string; suggestedLocation?: string }): Promise<{ message: ChatMessage; conversation: Conversation }> {
     return request(`/api/conversations/${id}/messages`, {
       method: 'POST',
       body: JSON.stringify({ text, type, ...extra }),
@@ -286,6 +300,111 @@ export const api = {
     return request(`/api/conversations/${id}/report`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
+    });
+  },
+
+  // Student Care Helpdesk
+  async getStudentCareGuides(): Promise<{ guides: StudentCareGuide[] }> {
+    return request('/api/student-care/guides');
+  },
+
+  async createStudentCareGuide(data: {
+    title: string;
+    category: StudentCareGuide['category'];
+    componentOrKit: string;
+    summary: string;
+    pinoutNotes?: string;
+    troubleshootingTips: string[];
+    sampleCode?: string;
+  }): Promise<{ message: string; guide: StudentCareGuide }> {
+    return request('/api/student-care/guides', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async upvoteStudentCareGuide(id: string): Promise<{ message: string; guide: StudentCareGuide }> {
+    return request(`/api/student-care/guides/${id}/upvote`, {
+      method: 'POST',
+    });
+  },
+
+  async getStudentCareRequests(): Promise<{ requests: StudentCareRequest[] }> {
+    return request('/api/student-care/requests');
+  },
+
+  async createStudentCareRequest(data: {
+    title: string;
+    componentNeededOrIssue: string;
+    urgency: 'low' | 'medium' | 'high';
+    labName?: string;
+  }): Promise<{ message: string; request: StudentCareRequest }> {
+    return request('/api/student-care/requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async answerStudentCareRequest(id: string, data: { answerText: string; sampleCodeSnippet?: string }): Promise<{ message: string; request: StudentCareRequest }> {
+    return request(`/api/student-care/requests/${id}/answers`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Sustainability Eco-Impact & Leaderboards
+  async getEcoImpact(): Promise<{ metrics: EcoImpactMetrics }> {
+    return request('/api/eco-impact');
+  },
+
+  async getLeaderboard(): Promise<{ leaderboards: LeaderboardEntry[] }> {
+    return request('/api/leaderboards');
+  },
+
+  // Payment Status & Configuration
+  async getPaymentGatewayStatus(): Promise<{
+    provider: string;
+    status: 'unconfigured' | 'active';
+    offlineExchangeActive: boolean;
+    requiredConfig: string[];
+    message: string;
+  }> {
+    return request('/api/payment-gateway/status');
+  },
+
+  // Admin Management Portal
+  async getAdminOverview(): Promise<{
+    overview: {
+      totalUsers: number;
+      totalListings: number;
+      totalTransactions: number;
+      pendingReports: number;
+      activeDisputes: number;
+      reports: any[];
+      disputes: any[];
+      recentTransactions: TransactionRecord[];
+    };
+  }> {
+    return request('/api/admin/overview');
+  },
+
+  async resolveAdminDispute(id: string, data: { resolution: 'refund_granted' | 'item_returned' | 'dismissed'; notes: string }): Promise<{ message: string }> {
+    return request(`/api/admin/disputes/${id}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async moderateListing(id: string, data: { action: 'feature' | 'delist' | 'verify'; status?: string }): Promise<{ message: string; listing: ComponentItem }> {
+    return request(`/api/admin/listings/${id}/moderate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async dismissReport(id: string): Promise<{ message: string }> {
+    return request(`/api/admin/reports/${id}/dismiss`, {
+      method: 'POST',
     });
   },
 };
