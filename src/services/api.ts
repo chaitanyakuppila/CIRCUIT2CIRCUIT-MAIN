@@ -102,15 +102,25 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   const targetUrl = getApiUrl(endpoint);
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
   let response: Response;
   try {
     response = await fetch(targetUrl, {
       ...options,
       headers,
+      signal: controller.signal,
     });
   } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. The server or database took too long to respond. Please check your connection and try again.');
+    }
     console.error(`Network fetch failed for ${targetUrl}:`, err);
     throw new Error('Unable to connect to Circuit2Circuit server. Please check your network connection and try again.');
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const data = await response.json().catch(() => ({}));

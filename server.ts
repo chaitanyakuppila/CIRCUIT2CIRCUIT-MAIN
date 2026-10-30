@@ -839,6 +839,14 @@ async function ensurePgSchema(): Promise<boolean> {
   }
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timeoutHandle: any;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error('Operation timed out')), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutHandle));
+}
+
 export async function findUserByRollNumber(identifier: string): Promise<StoredUser | null> {
   const clean = identifier.trim();
   const cleanUpper = clean.toUpperCase();
@@ -851,7 +859,7 @@ export async function findUserByRollNumber(identifier: string): Promise<StoredUs
       const q = isEmail
         ? fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('email', '==', cleanLower))
         : fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('rollNumberUpper', '==', cleanUpper));
-      const snapshot = await fsGetDocs(q);
+      const snapshot = await withTimeout(fsGetDocs(q), 3500);
       if (!snapshot.empty) {
         const u = snapshot.docs[0].data() as StoredUser;
         return {
@@ -869,7 +877,7 @@ export async function findUserByRollNumber(identifier: string): Promise<StoredUs
         };
       }
     } catch (err) {
-      console.error('Firestore findUserByRollNumber error:', err);
+      console.error('Firestore findUserByRollNumber error or timeout:', err);
     }
   }
 
