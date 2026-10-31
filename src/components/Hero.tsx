@@ -11,7 +11,7 @@ export const Hero: React.FC<HeroProps> = ({
   onListClick,
 }) => {
   return (
-    <section className="relative overflow-hidden py-7 sm:py-8 lg:py-10 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md">
+    <section className="relative overflow-hidden py-6 sm:py-8 lg:py-10 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           
@@ -22,7 +22,7 @@ export const Hero: React.FC<HeroProps> = ({
               <span>Sri Vasavi Engineering College · Student Electronics Exchange</span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight">
+            <h1 className="text-xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-tight">
               Rent, Sell & Donate <span className="text-emerald-400">Lab Components</span> with Seniors & Juniors
             </h1>
 

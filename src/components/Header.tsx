@@ -80,13 +80,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span>Student Care</span>
           </button>
 
-          <button 
-            onClick={() => scrollToSection('sustainability')} 
-            className="hover:text-emerald-400 transition-colors whitespace-nowrap cursor-pointer flex items-center gap-1 text-slate-300 hover:text-white"
-          >
-            <Leaf className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-            <span>Eco-Impact & Ranks</span>
-          </button>
 
           {onOpenAdmin && (
             <button 
@@ -247,13 +240,6 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <BookOpen className="w-4 h-4 text-emerald-400" />
               <span>Student Care Helpdesk</span>
-            </button>
-            <button 
-              onClick={() => scrollToSection('sustainability')} 
-              className="text-left py-2 px-3 hover:bg-slate-900 rounded-lg hover:text-emerald-400 transition-colors text-slate-300 min-h-[40px] flex items-center gap-2"
-            >
-              <Leaf className="w-4 h-4 text-teal-400" />
-              <span>Eco-Impact & Leaderboard</span>
             </button>
             {onOpenAdmin && (
               <button 

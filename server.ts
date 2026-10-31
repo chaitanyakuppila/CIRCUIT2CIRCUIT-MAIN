@@ -1909,6 +1909,12 @@ export function createApp(): express.Application {
       try {
         const sessionToken = createSignedSessionToken(newUser);
         await saveSession(sessionToken, newUser.id);
+
+        return res.status(201).json({
+          message: `Student account created successfully. Welcome, ${newUser.name}!`,
+          token: sessionToken,
+          user: sanitizeUser(newUser),
+        });
       } catch (sessionErr: any) {
         console.error('Error creating session during registration:', sessionErr);
         return res.status(500).json({
@@ -1916,12 +1922,6 @@ export function createApp(): express.Application {
           details: sessionErr.message
         });
       }
-
-      return res.status(201).json({
-        message: `Student account created successfully. Welcome, ${newUser.name}!`,
-        token: sessionToken,
-        user: sanitizeUser(newUser),
-      });
     } catch (err: any) {
       console.error('Registration handler caught unhandled exception:', err);
       return res.status(500).json({ 
