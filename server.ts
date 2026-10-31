@@ -485,6 +485,9 @@ function loadDatabase(): DatabaseSchema {
     try {
       const content = fs.readFileSync(DB_FILE, 'utf-8');
       const data: DatabaseSchema = JSON.parse(content);
+      if (!data.listings) data.listings = [];
+      if (!data.branches) data.branches = DEFAULT_BRANCHES;
+      if (!data.sessions) data.sessions = [];
       if (!data.conversations) data.conversations = [];
       if (!data.messages) data.messages = [];
       if (!data.reports) data.reports = [];
@@ -495,7 +498,7 @@ function loadDatabase(): DatabaseSchema {
       
       // Ensure all initial components (including new Project Kits) are present
       INITIAL_COMPONENTS.forEach((initItem) => {
-        if (!data.listings.some((l) => l.id === initItem.id)) {
+        if (!data.listings.some((l: any) => l && l.id === initItem.id)) {
           data.listings.unshift(initItem);
         }
       });
@@ -1691,7 +1694,21 @@ export function createApp(): express.Application {
     }
   }
 
-  app.use(express.json({ limit: '10mb' }));
+  // Request logger for Vercel tracing
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    if (isVercel) {
+      console.log(`[VERCEL REQ] ${req.method} ${req.url} (Body: ${req.body ? 'yes' : 'no'})`);
+    }
+    next();
+  });
+
+  // Body parsing middleware (Harden for Vercel where body might already be parsed)
+  app.use((req: any, res: Response, next: NextFunction) => {
+    if (req.body && typeof req.body === 'object') {
+      return next();
+    }
+    express.json({ limit: '10mb' })(req, res, next);
+  });
 
   // Enable CORS headers for cross-origin requests & iframe previews
   app.use((req: Request, res: Response, next: NextFunction) => {
@@ -1704,11 +1721,40 @@ export function createApp(): express.Application {
     next();
   });
 
-  // Normalize incoming URLs for Vercel rewrites and sync database state
   app.use((req: Request, _res: Response, next: NextFunction) => {
     reloadDatabaseIfChanged();
     normalizeVercelRequest(req);
     next();
+  });
+
+  // Health and Debug endpoints for Vercel troubleshooting
+  app.get('/api/health', (_req, res) => {
+    res.json({ 
+      status: 'ok', 
+      isVercel, 
+      database: firestoreDb ? 'firestore' : (pgPool ? 'postgres' : 'memory'),
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  app.get('/api/debug', (req, res) => {
+    res.json({
+      url: req.url,
+      method: req.method,
+      query: req.query,
+      isVercel,
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        VERCEL: process.env.VERCEL,
+        HAS_FIREBASE_CONFIG: Boolean(process.env.FIREBASE_CONFIG || process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID),
+        HAS_POSTGRES: Boolean(process.env.POSTGRES_URL),
+      },
+      dbState: {
+        usersCount: db?.users?.length || 0,
+        hasFirestore: Boolean(firestoreDb),
+        hasPg: Boolean(pgPool)
+      }
+    });
   });
 
   // Static routes for image assets across both dev and production Express servers
@@ -3373,6 +3419,16 @@ export function createApp(): express.Application {
     } catch (err) {
       res.status(500).json({ error: 'Failed to moderate listing.' });
     }
+  });
+
+  // Global Error Handler for better server-side diagnostics
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('UNHANDLED SERVER ERROR:', err);
+    res.status(500).json({
+      error: 'An internal server error occurred.',
+      details: err.message,
+      stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    });
   });
 
   return app;
