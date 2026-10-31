@@ -126,13 +126,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error(data.error || 'Authentication required. Please sign in with your college credentials.');
-    }
-    if (response.status === 404) {
-      throw new Error(data.error || `Backend endpoint not found (404) at ${targetUrl}.`);
-    }
-    throw new Error(data.error || `Request failed with status ${response.status}`);
+    const errorMsg = data.error || data.message || data.details || (
+      response.status === 401
+        ? 'Invalid college credentials or unregistered student account.'
+        : response.status === 404
+        ? `Backend endpoint not found (404) at ${targetUrl}.`
+        : `Request failed with status ${response.status}`
+    );
+    throw new Error(errorMsg);
   }
 
   return data as T;

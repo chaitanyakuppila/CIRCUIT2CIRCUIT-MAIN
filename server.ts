@@ -848,138 +848,178 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 export async function findUserByRollNumber(identifier: string): Promise<StoredUser | null> {
-  const clean = identifier.trim();
-  const cleanUpper = clean.toUpperCase();
-  const cleanLower = clean.toLowerCase();
-  const isEmail = clean.includes('@');
+  try {
+    const clean = String(identifier || '').trim();
+    if (!clean) return null;
+    const cleanUpper = clean.toUpperCase();
+    const cleanLower = clean.toLowerCase();
+    const isEmail = clean.includes('@');
 
-  // 1. Check Firebase Firestore (Primary persistent store)
-  if (firestoreDb) {
-    try {
-      const q = isEmail
-        ? fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('email', '==', cleanLower))
-        : fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('rollNumberUpper', '==', cleanUpper));
-      const snapshot = await withTimeout(fsGetDocs(q), 3500);
-      if (!snapshot.empty) {
-        const u = snapshot.docs[0].data() as StoredUser;
-        return {
-          id: u.id,
-          name: u.name,
-          email: u.email || `${u.rollNumber.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
-          rollNumber: u.rollNumber,
-          branch: u.branch,
-          mobile: u.mobile,
-          year: u.year,
-          shareMobilePublicly: Boolean(u.shareMobilePublicly),
-          role: u.role || 'student',
-          passwordHash: u.passwordHash,
-          createdAt: u.createdAt,
-        };
+    // 1. Check Firebase Firestore (Primary persistent store)
+    if (firestoreDb) {
+      try {
+        const q = isEmail
+          ? fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('email', '==', cleanLower))
+          : fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('rollNumberUpper', '==', cleanUpper));
+        const snapshot = await withTimeout(fsGetDocs(q), 3500);
+        if (snapshot && !snapshot.empty) {
+          const u = snapshot.docs[0].data() as StoredUser;
+          if (u) {
+            return {
+              id: u.id || `usr-${Date.now()}`,
+              name: u.name || 'Student',
+              email: u.email || `${(u.rollNumber || cleanUpper).toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
+              rollNumber: u.rollNumber || cleanUpper,
+              branch: u.branch || 'Engineering',
+              mobile: u.mobile || '',
+              year: u.year || '2nd Year',
+              shareMobilePublicly: Boolean(u.shareMobilePublicly),
+              role: u.role || 'student',
+              passwordHash: u.passwordHash || '',
+              createdAt: u.createdAt || new Date().toISOString(),
+            };
+          }
+        }
+      } catch (err) {
+        console.error('Firestore findUserByRollNumber error or timeout:', err);
       }
-    } catch (err) {
-      console.error('Firestore findUserByRollNumber error or timeout:', err);
     }
-  }
 
-  // 2. Check PostgreSQL
-  if (pgPool) {
-    try {
-      await (pgInitPromise ||= ensurePgSchema());
-      const res = await pgPool.query(
-        'SELECT id, name, roll_number AS "rollNumber", branch, mobile, year, share_mobile_publicly AS "shareMobilePublicly", password_hash AS "passwordHash", created_at AS "createdAt" FROM c2c_users WHERE UPPER(roll_number) = $1',
-        [cleanUpper]
-      );
-      if (res.rows.length > 0) {
-        const u = res.rows[0];
-        return {
-          id: u.id,
-          name: u.name,
-          email: u.email || `${u.rollNumber.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
-          rollNumber: u.rollNumber,
-          branch: u.branch,
-          mobile: u.mobile,
-          year: u.year,
-          shareMobilePublicly: Boolean(u.shareMobilePublicly),
-          role: u.role || 'student',
-          passwordHash: u.passwordHash,
-          createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt),
-        };
+    // 2. Check PostgreSQL
+    if (pgPool) {
+      try {
+        await (pgInitPromise ||= ensurePgSchema());
+        const res = await pgPool.query(
+          'SELECT id, name, roll_number AS "rollNumber", branch, mobile, year, share_mobile_publicly AS "shareMobilePublicly", password_hash AS "passwordHash", created_at AS "createdAt" FROM c2c_users WHERE UPPER(roll_number) = $1',
+          [cleanUpper]
+        );
+        if (res && res.rows && res.rows.length > 0) {
+          const u = res.rows[0];
+          return {
+            id: u.id,
+            name: u.name,
+            email: u.email || `${(u.rollNumber || cleanUpper).toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
+            rollNumber: u.rollNumber || cleanUpper,
+            branch: u.branch,
+            mobile: u.mobile,
+            year: u.year,
+            shareMobilePublicly: Boolean(u.shareMobilePublicly),
+            role: u.role || 'student',
+            passwordHash: u.passwordHash || '',
+            createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt || new Date().toISOString()),
+          };
+        }
+      } catch (err) {
+        console.error('PostgreSQL findUserByRollNumber error:', err);
       }
-    } catch (err) {
-      console.error('PostgreSQL findUserByRollNumber error:', err);
     }
-  }
 
-  // 3. Fallback to local memory & disk database
-  reloadDatabaseIfChanged();
-  const mem = db.users.find((u) => {
-    if (isEmail) return u.email?.toLowerCase() === cleanLower;
-    return u.rollNumber.trim().toUpperCase() === cleanUpper;
-  });
-  if (mem) {
-    if (!mem.email) mem.email = `${mem.rollNumber.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`;
-    return mem;
+    // 3. Fallback to local memory & disk database
+    try {
+      reloadDatabaseIfChanged();
+      if (!db || !Array.isArray(db.users)) {
+        db = loadDatabase();
+      }
+      const usersList = db?.users || [];
+      const mem = usersList.find((u) => {
+        if (!u) return false;
+        if (isEmail) return u.email?.toLowerCase() === cleanLower;
+        return u.rollNumber && String(u.rollNumber).trim().toUpperCase() === cleanUpper;
+      });
+      if (mem) {
+        if (!mem.email && mem.rollNumber) {
+          mem.email = `${mem.rollNumber.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`;
+        }
+        return mem;
+      }
+    } catch (memErr) {
+      console.error('Local memory lookup error:', memErr);
+    }
+
+    return null;
+  } catch (globalErr) {
+    console.error('Error in findUserByRollNumber:', globalErr);
+    return null;
   }
-  return null;
 }
 
 export async function findUserById(userId: string): Promise<StoredUser | null> {
-  // 1. Check Firebase Firestore
-  if (firestoreDb) {
-    try {
-      const docRef = fsDoc(firestoreDb, 'c2c_users', userId);
-      const snap = await fsGetDoc(docRef);
-      if (snap.exists()) {
-        const u = snap.data() as StoredUser;
-        return {
-          id: u.id,
-          name: u.name,
-          email: u.email || `${u.rollNumber?.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
-          rollNumber: u.rollNumber,
-          branch: u.branch,
-          mobile: u.mobile,
-          year: u.year,
-          shareMobilePublicly: Boolean(u.shareMobilePublicly),
-          passwordHash: u.passwordHash,
-          createdAt: u.createdAt,
-        };
-      }
-    } catch (err) {
-      console.error('Firestore findUserById error:', err);
-    }
-  }
+  try {
+    if (!userId) return null;
 
-  // 2. Check PostgreSQL
-  if (pgPool) {
-    try {
-      await (pgInitPromise ||= ensurePgSchema());
-      const res = await pgPool.query(
-        'SELECT id, name, roll_number AS "rollNumber", branch, mobile, year, share_mobile_publicly AS "shareMobilePublicly", password_hash AS "passwordHash", created_at AS "createdAt" FROM c2c_users WHERE id = $1',
-        [userId]
-      );
-      if (res.rows.length > 0) {
-        const u = res.rows[0];
-        return {
-          id: u.id,
-          name: u.name,
-          email: `${u.rollNumber?.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
-          rollNumber: u.rollNumber,
-          branch: u.branch,
-          mobile: u.mobile,
-          year: u.year,
-          shareMobilePublicly: Boolean(u.shareMobilePublicly),
-          passwordHash: u.passwordHash,
-          createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt),
-        };
+    // 1. Check Firebase Firestore
+    if (firestoreDb) {
+      try {
+        const docRef = fsDoc(firestoreDb, 'c2c_users', userId);
+        const snap = await fsGetDoc(docRef);
+        if (snap && snap.exists()) {
+          const u = snap.data() as StoredUser;
+          if (u) {
+            return {
+              id: u.id || userId,
+              name: u.name || 'Student',
+              email: u.email || `${u.rollNumber?.toLowerCase() || 'student'}@${OFFICIAL_EMAIL_DOMAIN}`,
+              rollNumber: u.rollNumber || '',
+              branch: u.branch || 'Engineering',
+              mobile: u.mobile || '',
+              year: u.year || '2nd Year',
+              shareMobilePublicly: Boolean(u.shareMobilePublicly),
+              role: u.role || 'student',
+              passwordHash: u.passwordHash || '',
+              createdAt: u.createdAt || new Date().toISOString(),
+            };
+          }
+        }
+      } catch (err) {
+        console.error('Firestore findUserById error:', err);
       }
-    } catch (err) {
-      console.error('PostgreSQL findUserById error:', err);
     }
-  }
 
-  reloadDatabaseIfChanged();
-  const mem = db.users.find((u) => u.id === userId);
-  return mem || null;
+    // 2. Check PostgreSQL
+    if (pgPool) {
+      try {
+        await (pgInitPromise ||= ensurePgSchema());
+        const res = await pgPool.query(
+          'SELECT id, name, roll_number AS "rollNumber", branch, mobile, year, share_mobile_publicly AS "shareMobilePublicly", password_hash AS "passwordHash", created_at AS "createdAt" FROM c2c_users WHERE id = $1',
+          [userId]
+        );
+        if (res && res.rows && res.rows.length > 0) {
+          const u = res.rows[0];
+          return {
+            id: u.id,
+            name: u.name,
+            email: `${u.rollNumber?.toLowerCase() || 'student'}@${OFFICIAL_EMAIL_DOMAIN}`,
+            rollNumber: u.rollNumber,
+            branch: u.branch,
+            mobile: u.mobile,
+            year: u.year,
+            shareMobilePublicly: Boolean(u.shareMobilePublicly),
+            role: u.role || 'student',
+            passwordHash: u.passwordHash || '',
+            createdAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : String(u.createdAt || new Date().toISOString()),
+          };
+        }
+      } catch (err) {
+        console.error('PostgreSQL findUserById error:', err);
+      }
+    }
+
+    try {
+      reloadDatabaseIfChanged();
+      if (!db || !Array.isArray(db.users)) {
+        db = loadDatabase();
+      }
+      const mem = (db?.users || []).find((u) => u && u.id === userId);
+      return mem || null;
+    } catch (memErr) {
+      console.error('Local findUserById memory lookup error:', memErr);
+    }
+
+    return null;
+  } catch (globalErr) {
+    console.error('Error in findUserById:', globalErr);
+    return null;
+  }
 }
 
 function cleanForFirestore<T>(data: T): any {
@@ -988,82 +1028,97 @@ function cleanForFirestore<T>(data: T): any {
 }
 
 export async function saveNewUser(newUser: StoredUser): Promise<void> {
-  const cleanRoll = newUser.rollNumber.trim().toUpperCase();
-  const sanitizedUser = { ...newUser, rollNumber: cleanRoll, rollNumberUpper: cleanRoll };
+  try {
+    const cleanRoll = String(newUser.rollNumber || '').trim().toUpperCase();
+    const sanitizedUser = { ...newUser, rollNumber: cleanRoll, rollNumberUpper: cleanRoll };
 
-  // 1. Always update local memory & disk cache
-  const idx = db.users.findIndex((u) => u.rollNumber.trim().toUpperCase() === cleanRoll);
-  if (idx !== -1) {
-    db.users[idx] = sanitizedUser;
-  } else {
-    db.users.push(sanitizedUser);
-  }
-  saveDatabase();
-
-  // 2. Persist to Firebase Firestore
-  if (firestoreDb) {
-    try {
-      await fsSetDoc(fsDoc(firestoreDb, 'c2c_users', sanitizedUser.id), cleanForFirestore(sanitizedUser));
-      console.log('Saved new user to Firebase Firestore:', sanitizedUser.rollNumber);
-    } catch (err) {
-      console.error('Firestore saveNewUser error:', err);
+    // 1. Always update local memory & disk cache
+    if (!db || !Array.isArray(db.users)) {
+      db = loadDatabase();
     }
-  }
-
-  // 3. Persist to PostgreSQL if configured
-  if (pgPool) {
-    try {
-      await (pgInitPromise ||= ensurePgSchema());
-      await pgPool.query(
-        `INSERT INTO c2c_users (id, name, roll_number, branch, mobile, year, share_mobile_publicly, password_hash, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         ON CONFLICT (roll_number) DO UPDATE SET
-           name = EXCLUDED.name,
-           branch = EXCLUDED.branch,
-           mobile = EXCLUDED.mobile,
-           year = EXCLUDED.year,
-           share_mobile_publicly = EXCLUDED.share_mobile_publicly,
-           password_hash = EXCLUDED.password_hash`,
-        [
-          sanitizedUser.id,
-          sanitizedUser.name,
-          sanitizedUser.rollNumber,
-          sanitizedUser.branch,
-          sanitizedUser.mobile,
-          sanitizedUser.year,
-          sanitizedUser.shareMobilePublicly,
-          sanitizedUser.passwordHash,
-          sanitizedUser.createdAt,
-        ]
-      );
-    } catch (err) {
-      console.error('PostgreSQL saveNewUser error:', err);
+    const idx = (db?.users || []).findIndex((u) => u && u.rollNumber && String(u.rollNumber).trim().toUpperCase() === cleanRoll);
+    if (idx !== -1) {
+      db.users[idx] = sanitizedUser;
+    } else {
+      db.users.push(sanitizedUser);
     }
+    saveDatabase();
+
+    // 2. Persist to Firebase Firestore
+    if (firestoreDb) {
+      try {
+        await fsSetDoc(fsDoc(firestoreDb, 'c2c_users', sanitizedUser.id), cleanForFirestore(sanitizedUser));
+        console.log('Saved new user to Firebase Firestore:', sanitizedUser.rollNumber);
+      } catch (err) {
+        console.error('Firestore saveNewUser error:', err);
+      }
+    }
+
+    // 3. Persist to PostgreSQL if configured
+    if (pgPool) {
+      try {
+        await (pgInitPromise ||= ensurePgSchema());
+        await pgPool.query(
+          `INSERT INTO c2c_users (id, name, roll_number, branch, mobile, year, share_mobile_publicly, password_hash, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           ON CONFLICT (roll_number) DO UPDATE SET
+             name = EXCLUDED.name,
+             branch = EXCLUDED.branch,
+             mobile = EXCLUDED.mobile,
+             year = EXCLUDED.year,
+             share_mobile_publicly = EXCLUDED.share_mobile_publicly,
+             password_hash = EXCLUDED.password_hash`,
+          [
+            sanitizedUser.id,
+            sanitizedUser.name,
+            sanitizedUser.rollNumber,
+            sanitizedUser.branch,
+            sanitizedUser.mobile,
+            sanitizedUser.year,
+            sanitizedUser.shareMobilePublicly,
+            sanitizedUser.passwordHash,
+            sanitizedUser.createdAt,
+          ]
+        );
+      } catch (err) {
+        console.error('PostgreSQL saveNewUser error:', err);
+      }
+    }
+  } catch (err) {
+    console.error('Error in saveNewUser:', err);
   }
 }
 
 export async function saveSession(token: string, userId: string): Promise<void> {
-  db.sessions.push({ token, userId, createdAt: new Date().toISOString() });
-  saveDatabase();
-
-  if (firestoreDb) {
-    try {
-      await fsSetDoc(fsDoc(firestoreDb, 'c2c_sessions', token), { token, userId, createdAt: new Date().toISOString() });
-    } catch (err) {
-      console.error('Firestore saveSession error:', err);
+  try {
+    if (!db || !Array.isArray(db.sessions)) {
+      if (!db) db = loadDatabase();
+      if (!db.sessions) db.sessions = [];
     }
-  }
+    db.sessions.push({ token, userId, createdAt: new Date().toISOString() });
+    saveDatabase();
 
-  if (pgPool) {
-    try {
-      await (pgInitPromise ||= ensurePgSchema());
-      await pgPool.query(
-        'INSERT INTO c2c_sessions (token, user_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (token) DO NOTHING',
-        [token, userId]
-      );
-    } catch (err) {
-      console.error('PostgreSQL saveSession error:', err);
+    if (firestoreDb) {
+      try {
+        await fsSetDoc(fsDoc(firestoreDb, 'c2c_sessions', token), { token, userId, createdAt: new Date().toISOString() });
+      } catch (err) {
+        console.error('Firestore saveSession error:', err);
+      }
     }
+
+    if (pgPool) {
+      try {
+        await (pgInitPromise ||= ensurePgSchema());
+        await pgPool.query(
+          'INSERT INTO c2c_sessions (token, user_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (token) DO NOTHING',
+          [token, userId]
+        );
+      } catch (err) {
+        console.error('PostgreSQL saveSession error:', err);
+      }
+    }
+  } catch (err) {
+    console.error('Error in saveSession:', err);
   }
 }
 
@@ -1906,26 +1961,23 @@ export function createApp(): express.Application {
       }
 
       // Create Cryptographic Session Token (Stateless across Vercel serverless containers)
+      let sessionToken = '';
       try {
-        const sessionToken = createSignedSessionToken(newUser);
+        sessionToken = createSignedSessionToken(newUser);
         await saveSession(sessionToken, newUser.id);
-
-        return res.status(201).json({
-          message: `Student account created successfully. Welcome, ${newUser.name}!`,
-          token: sessionToken,
-          user: sanitizeUser(newUser),
-        });
       } catch (sessionErr: any) {
-        console.error('Error creating session during registration:', sessionErr);
-        return res.status(500).json({
-          error: 'Failed to create session.',
-          details: sessionErr.message
-        });
+        console.error('Non-blocking error persisting session during registration:', sessionErr);
       }
+
+      return res.status(201).json({
+        message: `Student account created successfully. Welcome, ${newUser.name}!`,
+        token: sessionToken,
+        user: sanitizeUser(newUser),
+      });
     } catch (err: any) {
       console.error('Registration handler caught unhandled exception:', err);
       return res.status(500).json({ 
-        error: 'Account registration failed due to a server error. Please try again.',
+        error: err.message || 'Account registration failed due to a server error. Please try again.',
         details: err.message
       });
     }
@@ -1966,26 +2018,23 @@ export function createApp(): express.Application {
       }
 
       // Issue Cryptographic Session Token (survives container recycling and navigation)
+      let sessionToken = '';
       try {
-        const sessionToken = createSignedSessionToken(user);
+        sessionToken = createSignedSessionToken(user);
         await saveSession(sessionToken, user.id);
-
-        return res.json({
-          message: `Welcome back, ${user.name}!`,
-          token: sessionToken,
-          user: sanitizeUser(user),
-        });
       } catch (sessionErr: any) {
-        console.error('Error creating session during sign-in:', sessionErr);
-        return res.status(500).json({
-          error: 'Failed to create session.',
-          details: sessionErr.message
-        });
+        console.error('Non-blocking error persisting session during sign-in:', sessionErr);
       }
+
+      return res.json({
+        message: `Welcome back, ${user.name}!`,
+        token: sessionToken,
+        user: sanitizeUser(user),
+      });
     } catch (err: any) {
       console.error('Sign-in handler caught unhandled exception:', err);
       return res.status(500).json({ 
-        error: 'Sign-in failed due to an internal server error. Please try again.',
+        error: err.message || 'Sign-in failed due to an internal server error. Please try again.',
         details: err.message
       });
     }
