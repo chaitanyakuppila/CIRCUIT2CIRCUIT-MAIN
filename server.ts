@@ -622,13 +622,29 @@ function loadDatabase(): DatabaseSchema {
   return initialDb;
 }
 
-let db = loadDatabase();
-  let lastDbMtime = 0;
-  try {
-    if (fs.existsSync(DB_FILE)) {
-      lastDbMtime = fs.statSync(DB_FILE).mtimeMs;
-    }
-  } catch (e) {}
+let dbInstance: DatabaseSchema | null = null;
+let lastDbMtime = 0;
+
+export function getDb(): DatabaseSchema {
+  if (!dbInstance) {
+    dbInstance = loadDatabase();
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        lastDbMtime = fs.statSync(DB_FILE).mtimeMs;
+      }
+    } catch (e) {}
+  }
+  return dbInstance;
+}
+
+// Global proxy for db to maintain compatibility with existing code
+const db = new Proxy({} as DatabaseSchema, {
+  get: (_, prop: keyof DatabaseSchema) => getDb()[prop],
+  set: (_, prop: keyof DatabaseSchema, value) => {
+    getDb()[prop] = value as any;
+    return true;
+  }
+});
 
   export function reloadDatabaseIfChanged() {
     try {
@@ -636,12 +652,17 @@ let db = loadDatabase();
         const stats = fs.statSync(DB_FILE);
         if (stats.mtimeMs > lastDbMtime) {
           const content = fs.readFileSync(DB_FILE, 'utf-8');
-          db = JSON.parse(content);
-          lastDbMtime = stats.mtimeMs;
+          if (content && content.trim()) {
+            const newData = JSON.parse(content);
+            if (newData && typeof newData === 'object' && newData.users) {
+              dbInstance = newData;
+              lastDbMtime = stats.mtimeMs;
+            }
+          }
         }
       }
     } catch (e) {
-      // ignore
+      console.warn('Database reload failed:', e);
     }
   }
 
@@ -714,79 +735,101 @@ export function verifySignedSessionToken(token: string): SignedSessionPayload | 
   }
 }
 
-// --- Firebase Firestore Initialization ---
-let firebaseConfig: any = null;
-try {
-  const configPath = path.join(__dirname, 'firebase-applet-config.json');
-  if (fs.existsSync(configPath)) {
-    firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  } else {
-    const rootConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(rootConfigPath)) {
-      firebaseConfig = JSON.parse(fs.readFileSync(rootConfigPath, 'utf-8'));
-    }
-  }
-} catch (e) {
-  console.warn('Could not load firebase-applet-config.json:', e);
-}
-
-if (!firebaseConfig && process.env.FIREBASE_CONFIG) {
-  try {
-    firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG);
-  } catch (e) {}
-}
-if (!firebaseConfig && (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID)) {
-  firebaseConfig = {
-    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
-    apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN,
-    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || 'ai-studio-circuit2circuitb-0ba4f3df-8bc1-4e2d-baed-e40f92e37579',
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID,
-  };
-}
-
+// --- Persistent Database Connection Architecture ---
 let firestoreDb: any = null;
-if (firebaseConfig && firebaseConfig.projectId) {
-  try {
-    const firebaseApp = getFirebaseApps().length === 0 ? initFirebaseApp(firebaseConfig) : getFirebaseApps()[0];
-    firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-    console.log('Firebase Firestore initialized successfully:', firebaseConfig.projectId);
-  } catch (err) {
-    console.error('Failed to initialize Firestore:', err);
-  }
-}
+let firestoreInitAttempted = false;
 
-// PostgreSQL Connection Pool Setup
-const PG_CONN_STRING =
-  process.env.POSTGRES_URL ||
-  process.env.DATABASE_URL ||
-  process.env.POSTGRES_PRISMA_URL ||
-  process.env.POSTGRES_URL_NON_POOLING ||
-  process.env.PGURI ||
-  '';
+export function getFirestoreDb() {
+  if (firestoreDb) return firestoreDb;
+  if (firestoreInitAttempted) return null;
+  firestoreInitAttempted = true;
+
+  try {
+    let firebaseConfig: any = null;
+    const candidates = [
+      path.join(process.cwd(), 'firebase-applet-config.json'),
+      path.join(__dirname, 'firebase-applet-config.json'),
+      path.join(__dirname, '..', 'firebase-applet-config.json')
+    ];
+    
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        try {
+          firebaseConfig = JSON.parse(fs.readFileSync(p, 'utf-8'));
+          break;
+        } catch (e) {}
+      }
+    }
+
+    if (!firebaseConfig && process.env.FIREBASE_CONFIG) {
+      try {
+        firebaseConfig = JSON.parse(process.env.FIREBASE_CONFIG);
+      } catch (e) {}
+    }
+
+    if (!firebaseConfig && (process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID)) {
+      firebaseConfig = {
+        projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+        apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
+        authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN,
+        firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID || 'ai-studio-circuit2circuitb-0ba4f3df-8bc1-4e2d-baed-e40f92e37579',
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID,
+      };
+    }
+
+    if (firebaseConfig && firebaseConfig.projectId) {
+      const firebaseApp = getFirebaseApps().length === 0 ? initFirebaseApp(firebaseConfig) : getFirebaseApps()[0];
+      firestoreDb = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+      console.log('Firebase Firestore lazy-initialized successfully:', firebaseConfig.projectId);
+    }
+  } catch (err) {
+    console.error('CRITICAL: Failed to lazy-initialize Firestore:', err);
+  }
+  return firestoreDb;
+}
 
 let pgPool: pg.Pool | null = null;
-let pgInitPromise: Promise<boolean> | null = null;
+let pgInitAttempted = false;
 
-if (PG_CONN_STRING) {
-  try {
-    pgPool = new pg.Pool({
-      connectionString: PG_CONN_STRING,
-      ssl: PG_CONN_STRING.includes('localhost') ? false : { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 30000,
-    });
-  } catch (e) {
-    console.error('Failed to create PostgreSQL pool:', e);
+export function getPgPool() {
+  if (pgPool) return pgPool;
+  if (pgInitAttempted) return null;
+  pgInitAttempted = true;
+
+  const PG_CONN_STRING =
+    process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.PGURI ||
+    '';
+
+  if (PG_CONN_STRING) {
+    try {
+      pgPool = new pg.Pool({
+        connectionString: PG_CONN_STRING,
+        ssl: PG_CONN_STRING.includes('localhost') ? false : { rejectUnauthorized: false },
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+      });
+      console.log('PostgreSQL Pool created successfully.');
+    } catch (e) {
+      console.error('Failed to create PostgreSQL pool:', e);
+    }
   }
+  return pgPool;
 }
 
+let pgInitPromise: Promise<boolean> | null = null;
+
 async function ensurePgSchema(): Promise<boolean> {
-  if (!pgPool) return false;
+  const pool = getPgPool();
+  if (!pool) return false;
   try {
-    await pgPool.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS c2c_users (
         id VARCHAR(64) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
@@ -814,10 +857,10 @@ async function ensurePgSchema(): Promise<boolean> {
     `);
 
     // Seed default users if empty
-    const checkCount = await pgPool.query('SELECT COUNT(*) as count FROM c2c_users');
+    const checkCount = await pool.query('SELECT COUNT(*) as count FROM c2c_users');
     if (parseInt(checkCount.rows[0].count, 10) === 0 && db.users && db.users.length > 0) {
       for (const u of db.users) {
-        await pgPool.query(
+        await pool.query(
           `INSERT INTO c2c_users (id, name, roll_number, branch, mobile, year, share_mobile_publicly, password_hash, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            ON CONFLICT (roll_number) DO NOTHING`,
@@ -859,11 +902,12 @@ export async function findUserByRollNumber(identifier: string): Promise<StoredUs
     const isEmail = clean.includes('@');
 
     // 1. Check Firebase Firestore (Primary persistent store)
-    if (firestoreDb) {
+    const fs = getFirestoreDb();
+    if (fs) {
       try {
         const q = isEmail
-          ? fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('email', '==', cleanLower))
-          : fsQuery(fsCollection(firestoreDb, 'c2c_users'), fsWhere('rollNumberUpper', '==', cleanUpper));
+          ? fsQuery(fsCollection(fs, 'c2c_users'), fsWhere('email', '==', cleanLower))
+          : fsQuery(fsCollection(fs, 'c2c_users'), fsWhere('rollNumberUpper', '==', cleanUpper));
         const snapshot = await withTimeout(fsGetDocs(q), 3500);
         if (snapshot && !snapshot.empty) {
           const u = snapshot.docs[0].data() as StoredUser;
@@ -889,10 +933,11 @@ export async function findUserByRollNumber(identifier: string): Promise<StoredUs
     }
 
     // 2. Check PostgreSQL
-    if (pgPool) {
+    const pool = getPgPool();
+    if (pool) {
       try {
         await (pgInitPromise ||= ensurePgSchema());
-        const res = await pgPool.query(
+        const res = await pool.query(
           'SELECT id, name, roll_number AS "rollNumber", branch, mobile, year, share_mobile_publicly AS "shareMobilePublicly", password_hash AS "passwordHash", created_at AS "createdAt" FROM c2c_users WHERE UPPER(roll_number) = $1',
           [cleanUpper]
         );
@@ -920,10 +965,7 @@ export async function findUserByRollNumber(identifier: string): Promise<StoredUs
     // 3. Fallback to local memory & disk database
     try {
       reloadDatabaseIfChanged();
-      if (!db || !Array.isArray(db.users)) {
-        db = loadDatabase();
-      }
-      const usersList = db?.users || [];
+      const usersList = db.users || [];
       const mem = usersList.find((u) => {
         if (!u) return false;
         if (isEmail) return u.email?.toLowerCase() === cleanLower;
@@ -951,9 +993,10 @@ export async function findUserById(userId: string): Promise<StoredUser | null> {
     if (!userId) return null;
 
     // 1. Check Firebase Firestore
-    if (firestoreDb) {
+    const fs = getFirestoreDb();
+    if (fs) {
       try {
-        const docRef = fsDoc(firestoreDb, 'c2c_users', userId);
+        const docRef = fsDoc(fs, 'c2c_users', userId);
         const snap = await fsGetDoc(docRef);
         if (snap && snap.exists()) {
           const u = snap.data() as StoredUser;
@@ -979,10 +1022,11 @@ export async function findUserById(userId: string): Promise<StoredUser | null> {
     }
 
     // 2. Check PostgreSQL
-    if (pgPool) {
+    const pool = getPgPool();
+    if (pool) {
       try {
         await (pgInitPromise ||= ensurePgSchema());
-        const res = await pgPool.query(
+        const res = await pool.query(
           'SELECT id, name, roll_number AS "rollNumber", branch, mobile, year, share_mobile_publicly AS "shareMobilePublicly", password_hash AS "passwordHash", created_at AS "createdAt" FROM c2c_users WHERE id = $1',
           [userId]
         );
@@ -1009,10 +1053,7 @@ export async function findUserById(userId: string): Promise<StoredUser | null> {
 
     try {
       reloadDatabaseIfChanged();
-      if (!db || !Array.isArray(db.users)) {
-        db = loadDatabase();
-      }
-      const mem = (db?.users || []).find((u) => u && u.id === userId);
+      const mem = (db.users || []).find((u) => u && u.id === userId);
       return mem || null;
     } catch (memErr) {
       console.error('Local findUserById memory lookup error:', memErr);
@@ -1036,9 +1077,7 @@ export async function saveNewUser(newUser: StoredUser): Promise<void> {
     const sanitizedUser = { ...newUser, rollNumber: cleanRoll, rollNumberUpper: cleanRoll };
 
     // 1. Always update local memory & disk cache
-    if (!db || !Array.isArray(db.users)) {
-      db = loadDatabase();
-    }
+    getDb();
     const idx = (db?.users || []).findIndex((u) => u && u.rollNumber && String(u.rollNumber).trim().toUpperCase() === cleanRoll);
     if (idx !== -1) {
       db.users[idx] = sanitizedUser;
@@ -1048,9 +1087,10 @@ export async function saveNewUser(newUser: StoredUser): Promise<void> {
     saveDatabase();
 
     // 2. Persist to Firebase Firestore
-    if (firestoreDb) {
+    const fs = getFirestoreDb();
+    if (fs) {
       try {
-        await fsSetDoc(fsDoc(firestoreDb, 'c2c_users', sanitizedUser.id), cleanForFirestore(sanitizedUser));
+        await fsSetDoc(fsDoc(fs, 'c2c_users', sanitizedUser.id), cleanForFirestore(sanitizedUser));
         console.log('Saved new user to Firebase Firestore:', sanitizedUser.rollNumber);
       } catch (err) {
         console.error('Firestore saveNewUser error:', err);
@@ -1058,10 +1098,11 @@ export async function saveNewUser(newUser: StoredUser): Promise<void> {
     }
 
     // 3. Persist to PostgreSQL if configured
-    if (pgPool) {
+    const pool = getPgPool();
+    if (pool) {
       try {
         await (pgInitPromise ||= ensurePgSchema());
-        await pgPool.query(
+        await pool.query(
           `INSERT INTO c2c_users (id, name, roll_number, branch, mobile, year, share_mobile_publicly, password_hash, created_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            ON CONFLICT (roll_number) DO UPDATE SET
@@ -1094,25 +1135,24 @@ export async function saveNewUser(newUser: StoredUser): Promise<void> {
 
 export async function saveSession(token: string, userId: string): Promise<void> {
   try {
-    if (!db || !Array.isArray(db.sessions)) {
-      if (!db) db = loadDatabase();
-      if (!db.sessions) db.sessions = [];
-    }
+    getDb();
     db.sessions.push({ token, userId, createdAt: new Date().toISOString() });
     saveDatabase();
 
-    if (firestoreDb) {
+    const fs = getFirestoreDb();
+    if (fs) {
       try {
-        await fsSetDoc(fsDoc(firestoreDb, 'c2c_sessions', token), { token, userId, createdAt: new Date().toISOString() });
+        await fsSetDoc(fsDoc(fs, 'c2c_sessions', token), { token, userId, createdAt: new Date().toISOString() });
       } catch (err) {
         console.error('Firestore saveSession error:', err);
       }
     }
 
-    if (pgPool) {
+    const pool = getPgPool();
+    if (pool) {
       try {
         await (pgInitPromise ||= ensurePgSchema());
-        await pgPool.query(
+        await pool.query(
           'INSERT INTO c2c_sessions (token, user_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (token) DO NOTHING',
           [token, userId]
         );
@@ -1129,18 +1169,20 @@ export async function deleteSession(token: string): Promise<void> {
   db.sessions = db.sessions.filter((s) => s.token !== token);
   saveDatabase();
 
-  if (firestoreDb) {
+  const fs = getFirestoreDb();
+  if (fs) {
     try {
-      await fsDeleteDoc(fsDoc(firestoreDb, 'c2c_sessions', token));
+      await fsDeleteDoc(fsDoc(fs, 'c2c_sessions', token));
     } catch (err) {
       console.error('Firestore deleteSession error:', err);
     }
   }
 
-  if (pgPool) {
+  const pool = getPgPool();
+  if (pool) {
     try {
       await (pgInitPromise ||= ensurePgSchema());
-      await pgPool.query('DELETE FROM c2c_sessions WHERE token = $1', [token]);
+      await pool.query('DELETE FROM c2c_sessions WHERE token = $1', [token]);
     } catch (err) {
       console.error('PostgreSQL deleteSession error:', err);
     }
@@ -1148,9 +1190,10 @@ export async function deleteSession(token: string): Promise<void> {
 }
 
 export async function getAllListingsFromDb(): Promise<ComponentItem[]> {
-  if (firestoreDb) {
+  const fs = getFirestoreDb();
+  if (fs) {
     try {
-      const snapshot = await fsGetDocs(fsCollection(firestoreDb, 'c2c_listings'));
+      const snapshot = await fsGetDocs(fsCollection(fs, 'c2c_listings'));
       if (!snapshot.empty) {
         const firestoreListings: ComponentItem[] = [];
         snapshot.docs.forEach((docSnap) => {
@@ -1168,10 +1211,11 @@ export async function getAllListingsFromDb(): Promise<ComponentItem[]> {
     }
   }
 
-  if (pgPool) {
+  const pool = getPgPool();
+  if (pool) {
     try {
       await (pgInitPromise ||= ensurePgSchema());
-      const res = await pgPool.query('SELECT data FROM c2c_listings ORDER BY created_at DESC');
+      const res = await pool.query('SELECT data FROM c2c_listings ORDER BY created_at DESC');
       if (res.rows.length > 0) {
         return res.rows.map((row) => row.data);
       }
@@ -1193,18 +1237,20 @@ export async function saveListingToDb(listing: ComponentItem): Promise<void> {
   }
   saveDatabase();
 
-  if (firestoreDb) {
+  const fs = getFirestoreDb();
+  if (fs) {
     try {
-      await fsSetDoc(fsDoc(firestoreDb, 'c2c_listings', listing.id), cleanForFirestore(listing));
+      await fsSetDoc(fsDoc(fs, 'c2c_listings', listing.id), cleanForFirestore(listing));
     } catch (err) {
       console.error('Firestore saveListingToDb error:', err);
     }
   }
 
-  if (pgPool) {
+  const pool = getPgPool();
+  if (pool) {
     try {
       await (pgInitPromise ||= ensurePgSchema());
-      await pgPool.query(
+      await pool.query(
         'INSERT INTO c2c_listings (id, data, created_at) VALUES ($1, $2, NOW()) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data',
         [listing.id, JSON.stringify(listing)]
       );
@@ -1225,9 +1271,10 @@ export async function saveConversationToDb(conv: Conversation): Promise<void> {
   }
   saveDatabase();
 
-  if (firestoreDb) {
+  const fs = getFirestoreDb();
+  if (fs) {
     try {
-      await fsSetDoc(fsDoc(firestoreDb, 'c2c_conversations', conv.id), cleanForFirestore(conv));
+      await fsSetDoc(fsDoc(fs, 'c2c_conversations', conv.id), cleanForFirestore(conv));
     } catch (err) {
       console.error('Firestore saveConversationToDb error:', err);
     }
@@ -1238,9 +1285,10 @@ export async function getConversationByIdFromDb(convId: string): Promise<Convers
   reloadDatabaseIfChanged();
   const local = db.conversations.find((c) => c.id === convId);
 
-  if (firestoreDb) {
+  const fs = getFirestoreDb();
+  if (fs) {
     try {
-      const snap = await fsGetDoc(fsDoc(firestoreDb, 'c2c_conversations', convId));
+      const snap = await fsGetDoc(fsDoc(fs, 'c2c_conversations', convId));
       if (snap.exists()) {
         const conv = snap.data() as Conversation;
         const idx = db.conversations.findIndex((c) => c.id === convId);
@@ -1275,12 +1323,13 @@ export async function getConversationsForUserFromDb(userId: string, userRoll: st
     }
   }
 
-  if (firestoreDb) {
+  const fs = getFirestoreDb();
+  if (fs) {
     try {
       const [snapBuyer, snapSeller, snapSellerRoll] = await Promise.all([
-        fsGetDocs(fsQuery(fsCollection(firestoreDb, 'c2c_conversations'), fsWhere('buyerId', '==', userId))),
-        fsGetDocs(fsQuery(fsCollection(firestoreDb, 'c2c_conversations'), fsWhere('sellerId', '==', userId))),
-        fsGetDocs(fsQuery(fsCollection(firestoreDb, 'c2c_conversations'), fsWhere('sellerRollNumber', '==', userRoll))),
+        fsGetDocs(fsQuery(fsCollection(fs, 'c2c_conversations'), fsWhere('buyerId', '==', userId))),
+        fsGetDocs(fsQuery(fsCollection(fs, 'c2c_conversations'), fsWhere('sellerId', '==', userId))),
+        fsGetDocs(fsQuery(fsCollection(fs, 'c2c_conversations'), fsWhere('sellerRollNumber', '==', userRoll))),
       ]);
 
       const mergeDoc = (docSnap: any) => {
@@ -1318,9 +1367,10 @@ export async function saveChatMessageToDb(msg: ChatMessage): Promise<void> {
   }
   saveDatabase();
 
-  if (firestoreDb) {
+  const fs = getFirestoreDb();
+  if (fs) {
     try {
-      await fsSetDoc(fsDoc(firestoreDb, 'c2c_messages', msg.id), cleanForFirestore(msg));
+      await fsSetDoc(fsDoc(fs, 'c2c_messages', msg.id), cleanForFirestore(msg));
     } catch (err) {
       console.error('Firestore saveChatMessageToDb error:', err);
     }
@@ -1337,9 +1387,10 @@ export async function getMessagesForConversationFromDb(convId: string): Promise<
     }
   }
 
-  if (firestoreDb) {
+  const fs = getFirestoreDb();
+  if (fs) {
     try {
-      const q = fsQuery(fsCollection(firestoreDb, 'c2c_messages'), fsWhere('conversationId', '==', convId));
+      const q = fsQuery(fsCollection(fs, 'c2c_messages'), fsWhere('conversationId', '==', convId));
       const snap = await fsGetDocs(q);
       snap.forEach((docSnap) => {
         const msg = docSnap.data() as ChatMessage;
@@ -1710,6 +1761,13 @@ export function createApp(): express.Application {
     express.json({ limit: '10mb' })(req, res, next);
   });
 
+  // Warm up database connections for the request cycle
+  app.use((_req, _res, next) => {
+    getFirestoreDb();
+    getPgPool();
+    next();
+  });
+
   // Enable CORS headers for cross-origin requests & iframe previews
   app.use((req: Request, res: Response, next: NextFunction) => {
     res.header('Access-Control-Allow-Origin', '*');
@@ -1723,7 +1781,11 @@ export function createApp(): express.Application {
 
   app.use((req: Request, _res: Response, next: NextFunction) => {
     reloadDatabaseIfChanged();
-    normalizeVercelRequest(req);
+    // Vercel normalization is already done in the entry point api/[...path].ts
+    // For local dev, normalizeVercelRequest handles missing /api prefixes.
+    if (!isVercel) {
+      normalizeVercelRequest(req);
+    }
     next();
   });
 
@@ -1733,6 +1795,8 @@ export function createApp(): express.Application {
       status: 'ok', 
       isVercel, 
       database: firestoreDb ? 'firestore' : (pgPool ? 'postgres' : 'memory'),
+      hasFirestore: Boolean(getFirestoreDb()),
+      hasPg: Boolean(getPgPool()),
       timestamp: new Date().toISOString()
     });
   });
@@ -1751,8 +1815,8 @@ export function createApp(): express.Application {
       },
       dbState: {
         usersCount: db?.users?.length || 0,
-        hasFirestore: Boolean(firestoreDb),
-        hasPg: Boolean(pgPool)
+        hasFirestore: Boolean(getFirestoreDb()),
+        hasPg: Boolean(getPgPool())
       }
     });
   });
@@ -1915,6 +1979,10 @@ export function createApp(): express.Application {
   app.post(['/api/auth/register', '/auth/register'], async (req: Request, res: Response) => {
     try {
       const { name, email, rollNumber, branch, mobile, year, password, shareMobilePublicly } = req.body || {};
+      
+      if (isVercel) {
+        console.log(`[AUTH REGISTER] Attempt for: ${rollNumber} / ${email}`);
+      }
 
       // Validate Name
       if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -2022,10 +2090,12 @@ export function createApp(): express.Application {
       });
     } catch (err: any) {
       console.error('Registration handler caught unhandled exception:', err);
-      return res.status(500).json({ 
-        error: err.message || 'Account registration failed due to a server error. Please try again.',
-        details: err.message
-      });
+      if (!res.headersSent) {
+        return res.status(500).json({ 
+          error: 'An internal error occurred during registration. Please try again.',
+          details: err.message || 'Unknown error'
+        });
+      }
     }
   });
 
@@ -2034,6 +2104,10 @@ export function createApp(): express.Application {
     try {
       const { rollNumber, email, identifier, password } = req.body || {};
       const loginTarget = identifier || rollNumber || email;
+      
+      if (isVercel) {
+        console.log(`[AUTH LOGIN] Attempt for: ${loginTarget} (has password: ${Boolean(password)})`);
+      }
 
       if (!loginTarget || !password) {
         return res.status(400).json({ error: 'Please enter both your college roll number or email and password.' });
@@ -2079,10 +2153,13 @@ export function createApp(): express.Application {
       });
     } catch (err: any) {
       console.error('Sign-in handler caught unhandled exception:', err);
-      return res.status(500).json({ 
-        error: err.message || 'Sign-in failed due to an internal server error. Please try again.',
-        details: err.message
-      });
+      // Ensure we always return JSON even on unhandled crashes
+      if (!res.headersSent) {
+        return res.status(500).json({ 
+          error: 'An internal error occurred during sign-in. Please try again.',
+          details: err.message || 'Unknown error'
+        });
+      }
     }
   });
 
