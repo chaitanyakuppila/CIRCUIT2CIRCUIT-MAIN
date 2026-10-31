@@ -485,6 +485,7 @@ function loadDatabase(): DatabaseSchema {
     try {
       const content = fs.readFileSync(DB_FILE, 'utf-8');
       const data: DatabaseSchema = JSON.parse(content);
+      if (!data.users) data.users = [];
       if (!data.listings) data.listings = [];
       if (!data.branches) data.branches = DEFAULT_BRANCHES;
       if (!data.sessions) data.sessions = [];
@@ -495,6 +496,7 @@ function loadDatabase(): DatabaseSchema {
       if (!data.guides || data.guides.length === 0) data.guides = INITIAL_GUIDES;
       if (!data.careRequests || data.careRequests.length === 0) data.careRequests = INITIAL_REQUESTS_CARE;
       if (!data.transactions || data.transactions.length === 0) data.transactions = INITIAL_TRANSACTIONS;
+      if (!data.uploads) data.uploads = {};
       
       // Ensure all initial components (including new Project Kits) are present
       INITIAL_COMPONENTS.forEach((initItem) => {
@@ -675,7 +677,7 @@ const db = new Proxy({} as DatabaseSchema, {
           // ignore
         }
       }
-      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
+      fs.writeFileSync(DB_FILE, JSON.stringify(getDb(), null, 2), 'utf-8');
       try {
         lastDbMtime = fs.statSync(DB_FILE).mtimeMs;
       } catch (e) {}
@@ -1583,54 +1585,60 @@ interface AuthenticatedRequest extends Request {
 }
 
 async function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next();
-  }
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next();
+    }
 
-  const token = authHeader.substring(7).trim();
+    const token = authHeader.substring(7).trim();
 
-  // 1. Verify Cryptographic Signed Session Token (Stateless across all serverless lambda containers)
-  const tokenPayload = verifySignedSessionToken(token);
-  if (tokenPayload) {
-    try {
-      const user = await findUserById(tokenPayload.userId);
+    // 1. Verify Cryptographic Signed Session Token (Stateless across all serverless lambda containers)
+    const tokenPayload = verifySignedSessionToken(token);
+    if (tokenPayload) {
+      try {
+        const user = await findUserById(tokenPayload.userId);
+        if (user) {
+          req.currentUser = user;
+          req.sessionToken = token;
+          return next();
+        }
+        // Reconstruct safe student user from verified cryptographic token payload
+        req.currentUser = {
+          id: tokenPayload.userId,
+          name: tokenPayload.name,
+          email: `${tokenPayload.rollNumber.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
+          rollNumber: tokenPayload.rollNumber,
+          branch: tokenPayload.branch,
+          mobile: '',
+          year: tokenPayload.year as StudentUser['year'],
+          shareMobilePublicly: false,
+          passwordHash: '',
+          createdAt: new Date().toISOString(),
+        };
+        req.sessionToken = token;
+        return next();
+      } catch (e) {
+        // Fallback to traditional sessions
+      }
+    }
+
+    // 2. Check traditional session token
+    reloadDatabaseIfChanged();
+    const sessions = db.sessions || [];
+    const session = sessions.find((s) => s.token === token);
+    if (session) {
+      const user = await findUserById(session.userId);
       if (user) {
         req.currentUser = user;
         req.sessionToken = token;
-        return next();
       }
-      // Reconstruct safe student user from verified cryptographic token payload
-      req.currentUser = {
-        id: tokenPayload.userId,
-        name: tokenPayload.name,
-        email: `${tokenPayload.rollNumber.toLowerCase()}@${OFFICIAL_EMAIL_DOMAIN}`,
-        rollNumber: tokenPayload.rollNumber,
-        branch: tokenPayload.branch,
-        mobile: '',
-        year: tokenPayload.year as StudentUser['year'],
-        shareMobilePublicly: false,
-        passwordHash: '',
-        createdAt: new Date().toISOString(),
-      };
-      req.sessionToken = token;
-      return next();
-    } catch (e) {
-      // Fallback to traditional sessions
     }
+    next();
+  } catch (err) {
+    console.error('CRITICAL ERROR in authMiddleware:', err);
+    next(err);
   }
-
-  // 2. Check traditional session token
-  reloadDatabaseIfChanged();
-  const session = db.sessions.find((s) => s.token === token);
-  if (session) {
-    const user = await findUserById(session.userId);
-    if (user) {
-      req.currentUser = user;
-      req.sessionToken = token;
-    }
-  }
-  next();
 }
 
 function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -3499,8 +3507,11 @@ export function createApp(): express.Application {
   });
 
   // Global Error Handler for better server-side diagnostics
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     console.error('UNHANDLED SERVER ERROR:', err);
+    if (res.headersSent) {
+      return next(err);
+    }
     res.status(500).json({
       error: 'An internal server error occurred.',
       details: err.message,
