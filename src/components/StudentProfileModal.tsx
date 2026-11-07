@@ -47,6 +47,7 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
   const [receivedRequests, setReceivedRequests] = useState<ItemRequest[]>([]);
   const [loadingData, setLoadingData] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [deletingListingId, setDeletingListingId] = useState<string | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -137,13 +138,17 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
     if (!confirm(`Are you sure you want to remove "${itemName}" from active listings?`)) {
       return;
     }
+    setDeletingListingId(id);
+    setFeedbackMsg(null);
     try {
       await api.deleteListing(id);
       setMyListings((prev) => prev.filter((l) => l.id !== id));
       onListingsModified();
-      setFeedbackMsg({ type: 'success', text: `Removed "${itemName}".` });
+      setFeedbackMsg({ type: 'success', text: `Listing "${itemName}" permanently removed.` });
     } catch (err: any) {
-      setFeedbackMsg({ type: 'error', text: err.message || 'Failed to delete listing.' });
+      setFeedbackMsg({ type: 'error', text: err.message || 'Failed to delete listing. Please try again.' });
+    } finally {
+      setDeletingListingId(null);
     }
   };
 
@@ -510,11 +515,12 @@ export const StudentProfileModal: React.FC<StudentProfileModalProps> = ({
 
                     <div className="flex items-center gap-2 shrink-0">
                       <button
+                        disabled={deletingListingId === item.id}
                         onClick={() => handleDeleteListing(item.id, item.name)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-rose-400 hover:text-rose-300 bg-rose-950/20 border border-rose-900/40 rounded-lg hover:bg-rose-950/40 transition-colors cursor-pointer"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-rose-400 hover:text-rose-300 bg-rose-950/20 border border-rose-900/40 rounded-lg hover:bg-rose-950/40 transition-colors cursor-pointer disabled:opacity-50"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        <span>Remove</span>
+                        <span>{deletingListingId === item.id ? 'Removing...' : 'Remove'}</span>
                       </button>
                     </div>
                   </div>

@@ -1192,6 +1192,14 @@ export async function deleteSession(token: string): Promise<void> {
 }
 
 export async function getAllListingsFromDb(): Promise<ComponentItem[]> {
+  const deletedIds = (db as any).deletedListingIds || [];
+  const isInactiveOrDeleted = (item: any) => {
+    if (!item || !item.id) return true;
+    if (item.status === 'deleted' || item.isDeleted === true) return true;
+    if (deletedIds.includes(item.id)) return true;
+    return false;
+  };
+
   const fs = getFirestoreDb();
   if (fs) {
     try {
@@ -1200,13 +1208,11 @@ export async function getAllListingsFromDb(): Promise<ComponentItem[]> {
         const firestoreListings: ComponentItem[] = [];
         snapshot.docs.forEach((docSnap) => {
           const item = docSnap.data() as ComponentItem;
-          if (item && item.id) {
+          if (item && item.id && !isInactiveOrDeleted(item)) {
             firestoreListings.push(item);
           }
         });
-        if (firestoreListings.length > 0) {
-          return firestoreListings;
-        }
+        return firestoreListings;
       }
     } catch (err) {
       console.error('Firestore getAllListingsFromDb error:', err);
@@ -1217,9 +1223,13 @@ export async function getAllListingsFromDb(): Promise<ComponentItem[]> {
   if (pool) {
     try {
       await (pgInitPromise ||= ensurePgSchema());
-      const res = await pool.query('SELECT data FROM c2c_listings ORDER BY created_at DESC');
+      const res = await pool.query(
+        "SELECT data FROM c2c_listings WHERE (data->>'status') IS DISTINCT FROM 'deleted' AND (data->>'isDeleted') IS DISTINCT FROM 'true' ORDER BY created_at DESC"
+      );
       if (res.rows.length > 0) {
-        return res.rows.map((row) => row.data);
+        return res.rows
+          .map((row) => row.data as ComponentItem)
+          .filter((item) => !isInactiveOrDeleted(item));
       }
     } catch (err) {
       console.error('PostgreSQL getAllListingsFromDb error:', err);
@@ -1227,7 +1237,7 @@ export async function getAllListingsFromDb(): Promise<ComponentItem[]> {
   }
 
   reloadDatabaseIfChanged();
-  return db.listings || INITIAL_COMPONENTS;
+  return (db.listings || INITIAL_COMPONENTS).filter((l) => !isInactiveOrDeleted(l));
 }
 
 export async function saveListingToDb(listing: ComponentItem): Promise<void> {
@@ -1260,6 +1270,65 @@ export async function saveListingToDb(listing: ComponentItem): Promise<void> {
       console.error('PostgreSQL saveListingToDb error:', err);
     }
   }
+}
+
+export async function deleteListingFromDb(id: string): Promise<boolean> {
+  let deleted = false;
+
+  // 1. Maintain deletedListingIds tombstone in database so seeded/reloaded items are never resurrected
+  if (!(db as any).deletedListingIds) {
+    (db as any).deletedListingIds = [];
+  }
+  if (!(db as any).deletedListingIds.includes(id)) {
+    (db as any).deletedListingIds.push(id);
+  }
+
+  // 2. Remove from local in-memory array & local file cache
+  const idx = db.listings.findIndex((l) => l.id === id);
+  if (idx !== -1) {
+    db.listings.splice(idx, 1);
+    deleted = true;
+  }
+  saveDatabase();
+
+  // 3. Remove directly from Firebase Firestore document collection
+  const fs = getFirestoreDb();
+  if (fs) {
+    try {
+      const docRef = fsDoc(fs, 'c2c_listings', id);
+      try {
+        await fsSetDoc(docRef, { status: 'deleted', isDeleted: true }, { merge: true });
+      } catch (e) {}
+      await fsDeleteDoc(docRef);
+
+      try {
+        await fsSetDoc(fsDoc(fs, 'c2c_deleted_listings', id), {
+          id,
+          deletedAt: new Date().toISOString(),
+        });
+      } catch (e) {}
+
+      console.log(`[Firestore] Successfully deleted listing document ${id}.`);
+      deleted = true;
+    } catch (err) {
+      console.error(`[Firestore] deleteListingFromDb error for ${id}:`, err);
+    }
+  }
+
+  // 4. Remove from PostgreSQL
+  const pool = getPgPool();
+  if (pool) {
+    try {
+      await (pgInitPromise ||= ensurePgSchema());
+      const res = await pool.query('DELETE FROM c2c_listings WHERE id = $1', [id]);
+      console.log(`[PostgreSQL] Deleted listing ${id}, rows affected: ${res.rowCount}`);
+      if (res.rowCount && res.rowCount > 0) deleted = true;
+    } catch (err) {
+      console.error(`[PostgreSQL] deleteListingFromDb error for ${id}:`, err);
+    }
+  }
+
+  return deleted;
 }
 
 // --- Chat & Conversation Persistence Helpers ---
@@ -1641,6 +1710,13 @@ async function authMiddleware(req: AuthenticatedRequest, res: Response, next: Ne
   }
 }
 
+export const ADMIN_ROLL_NUMBER = '25A81A4329';
+
+export function isUserAdmin(user: StoredUser | StudentUser | null | undefined): boolean {
+  if (!user || !user.rollNumber) return false;
+  return user.rollNumber.trim().toUpperCase() === ADMIN_ROLL_NUMBER;
+}
+
 function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   if (!req.currentUser) {
     return res.status(401).json({
@@ -1650,9 +1726,24 @@ function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunctio
   next();
 }
 
-// Sanitize user object (strip passwordHash)
+function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  if (!req.currentUser) {
+    return res.status(401).json({
+      error: 'Authentication required. Please sign in with campus credentials.',
+    });
+  }
+  if (!isUserAdmin(req.currentUser)) {
+    return res.status(403).json({
+      error: 'Forbidden: Campus Admin access is restricted exclusively to authorized administration (25A81A4329).',
+    });
+  }
+  next();
+}
+
+// Sanitize user object (strip passwordHash & assign verified server-side role)
 function sanitizeUser(user: StoredUser): StudentUser {
   const { passwordHash, ...safeUser } = user;
+  safeUser.role = isUserAdmin(user) ? 'admin' : 'student';
   return safeUser;
 }
 
@@ -2475,27 +2566,78 @@ export function createApp(): express.Application {
     });
   });
 
-  // 9. Delete Listing (Owner Only)
-  app.delete('/api/listings/:id', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-    const user = req.currentUser!;
-    const listingId = req.params.id;
+  // 9. Delete Listing (Owner or Campus Admin)
+  const handleDeleteListing = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.currentUser!;
+      const listingId =
+        req.params?.id ||
+        req.body?.id ||
+        req.body?.listingId ||
+        (req.query?.id as string) ||
+        (Array.isArray(req.query?.path) ? req.query.path[req.query.path.length - 1] : undefined);
 
-    const listingIndex = db.listings.findIndex((l) => l.id === listingId);
-    if (listingIndex === -1) {
-      return res.status(404).json({ error: 'Listing not found.' });
+      if (!listingId) {
+        return res.status(400).json({ error: 'Listing ID is required.' });
+      }
+
+      // 1. Look up listing in live database
+      const allListings = await getAllListingsFromDb();
+      let listing = allListings.find((l) => l.id === listingId) || db.listings.find((l) => l.id === listingId);
+
+      // If not yet in cache, check direct Firestore document
+      if (!listing) {
+        const fs = getFirestoreDb();
+        if (fs) {
+          try {
+            const snap = await fsGetDoc(fsDoc(fs, 'c2c_listings', listingId));
+            if (snap.exists()) {
+              listing = snap.data() as ComponentItem;
+            }
+          } catch (e) {
+            console.error('Direct Firestore doc lookup error:', e);
+          }
+        }
+      }
+
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found in database.' });
+      }
+
+      // 2. Strict Ownership Check: Only the student who listed the item or campus admin (25A81A4329) can delete
+      const isAdmin = isUserAdmin(user);
+
+      const isOwner = Boolean(
+        (listing.sellerId && listing.sellerId === user.id) ||
+        (listing.sellerRollNumber && user.rollNumber &&
+          listing.sellerRollNumber.trim().toUpperCase() === user.rollNumber.trim().toUpperCase()) ||
+        (listing.sellerEmail && user.email &&
+          listing.sellerEmail.trim().toLowerCase() === user.email.trim().toLowerCase())
+      );
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({
+          error: 'Forbidden: You are only authorized to delete your own listings.',
+        });
+      }
+
+      // 3. Remove across Firestore, PostgreSQL, and local database
+      await deleteListingFromDb(listingId);
+
+      return res.status(200).json({
+        success: true,
+        message: `Listing "${listing.name}" removed successfully from campus marketplace.`,
+        deletedId: listingId,
+      });
+    } catch (err: any) {
+      console.error('Failed to delete listing:', err);
+      return res.status(500).json({ error: err.message || 'Failed to delete listing.' });
     }
+  };
 
-    const listing = db.listings[listingIndex];
-    // Check ownership
-    if (listing.sellerId && listing.sellerId !== user.id && listing.sellerRollNumber !== user.rollNumber) {
-      return res.status(403).json({ error: 'You are only authorized to delete your own listings.' });
-    }
-
-    db.listings.splice(listingIndex, 1);
-    saveDatabase();
-
-    res.json({ message: 'Listing removed successfully.' });
-  });
+  app.delete('/api/listings/:id', requireAuth, handleDeleteListing);
+  app.post('/api/listings/:id/delete', requireAuth, handleDeleteListing);
+  app.post('/api/listings/delete', requireAuth, handleDeleteListing);
 
   // 10. Submit Item Request (Enforcing Requesting Rules)
   app.post('/api/requests', requireAuth, (req: AuthenticatedRequest, res: Response) => {
@@ -2588,12 +2730,25 @@ export function createApp(): express.Application {
   });
 
   // 13. My Active Listings
-  app.get('/api/my/listings', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-    const user = req.currentUser!;
-    const myListings = db.listings.filter(
-      (l) => (l.sellerId && l.sellerId === user.id) || l.sellerRollNumber === user.rollNumber
-    );
-    res.json({ listings: myListings });
+  app.get('/api/my/listings', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const user = req.currentUser!;
+      const allListings = await getAllListingsFromDb();
+      const myListings = allListings.filter(
+        (l) =>
+          ((l.sellerId && l.sellerId === user.id) ||
+            (l.sellerRollNumber && user.rollNumber &&
+              l.sellerRollNumber.trim().toUpperCase() === user.rollNumber.trim().toUpperCase()) ||
+            (l.sellerEmail && user.email &&
+              l.sellerEmail.trim().toLowerCase() === user.email.trim().toLowerCase())) &&
+          l.status !== 'deleted' &&
+          !(l as any).isDeleted
+      );
+      res.json({ listings: myListings });
+    } catch (err) {
+      console.error('Failed to fetch my listings:', err);
+      res.status(500).json({ error: 'Failed to fetch student listings.' });
+    }
   });
 
   // --- 14. OLX-Style In-App Chat Routes ---
@@ -3331,9 +3486,9 @@ export function createApp(): express.Application {
         return res.status(404).json({ error: 'Listing not found.' });
       }
 
-      // Check authorization (seller or admin)
-      if (listing.sellerId && listing.sellerId !== user.id && listing.sellerRollNumber !== user.rollNumber && user.role !== 'admin') {
-        return res.status(403).json({ error: 'Only the listing owner or campus admin can change listing status.' });
+      // Check authorization (seller or campus admin)
+      if (listing.sellerId && listing.sellerId !== user.id && listing.sellerRollNumber !== user.rollNumber && !isUserAdmin(user)) {
+        return res.status(403).json({ error: 'Only the listing owner or campus admin (25A81A4329) can change listing status.' });
       }
 
       listing.status = status;
@@ -3414,10 +3569,10 @@ export function createApp(): express.Application {
     }
   });
 
-  // --- Admin Moderation & Overview Routes ---
+  // --- Admin Moderation & Overview Routes (Restricted Exclusively to 25A81A4329) ---
 
   // Admin Overview
-  app.get('/api/admin/overview', async (_req: Request, res: Response) => {
+  app.get('/api/admin/overview', requireAuth, requireAdmin, async (_req: AuthenticatedRequest, res: Response) => {
     try {
       const [listings, transactions, reports] = await Promise.all([
         getAllListingsFromDb(),
@@ -3456,7 +3611,7 @@ export function createApp(): express.Application {
   });
 
   // Resolve Dispute
-  app.post('/api/admin/disputes/:id/resolve', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/admin/disputes/:id/resolve', requireAuth, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const reportId = req.params.id;
       db.reports = (db.reports || []).filter((r) => r.id !== reportId);
@@ -3468,7 +3623,7 @@ export function createApp(): express.Application {
   });
 
   // Dismiss Safety Report
-  app.post('/api/admin/reports/:id/dismiss', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/admin/reports/:id/dismiss', requireAuth, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const reportId = req.params.id;
       db.reports = (db.reports || []).filter((r) => r.id !== reportId);
@@ -3480,7 +3635,7 @@ export function createApp(): express.Application {
   });
 
   // Moderate Listing (Delist or Approve)
-  app.post('/api/admin/listings/:id/moderate', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  app.post('/api/admin/listings/:id/moderate', requireAuth, requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const listingId = req.params.id;
       const { action } = req.body; // 'delist' | 'activate'

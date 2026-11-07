@@ -114,8 +114,8 @@ export const AnimatedCircuitBackground: React.FC = () => {
     pmremGenerator.dispose();
 
     // 3. CINEMATIC LIGHTING RIG
-    // Key Light (Warm Violet/Purple Studio Spotlight)
-    const keyLight = new THREE.DirectionalLight('#c084fc', 2.8);
+    // Key Light (Mint/Emerald Green Studio Spotlight)
+    const keyLight = new THREE.DirectionalLight('#34d399', 2.8);
     keyLight.position.set(14, 25, 16);
     keyLight.castShadow = !isSoftwareGl;
     if (keyLight.shadow) {
@@ -133,16 +133,16 @@ export const AnimatedCircuitBackground: React.FC = () => {
     scene.add(keyLight);
 
     // Cool Rim/Fill Light (Cyan/Electric Blue)
-    const fillLight = new THREE.DirectionalLight('#38bdf8', 1.4);
+    const fillLight = new THREE.DirectionalLight('#0ea5e9', 1.4);
     fillLight.position.set(-16, 14, -12);
     scene.add(fillLight);
 
-    // Soft Ambient Hemisphere Light (Dark Charcoal ground, Purple sky)
-    const hemiLight = new THREE.HemisphereLight('#a855f7', '#020617', 0.9);
+    // Soft Ambient Hemisphere Light (Dark Charcoal ground, Emerald sky)
+    const hemiLight = new THREE.HemisphereLight('#10b981', '#020617', 0.9);
     scene.add(hemiLight);
 
     // Oscillating Cinematic Specular Light Sweep
-    const sweepLight = new THREE.SpotLight('#f3e8ff', 3.2, 35, Math.PI / 5.5, 0.5, 1.2);
+    const sweepLight = new THREE.SpotLight('#a5f3fc', 3.2, 35, Math.PI / 5.5, 0.5, 1.2);
     sweepLight.position.set(-12, 16, 6);
     scene.add(sweepLight);
 
@@ -163,7 +163,7 @@ export const AnimatedCircuitBackground: React.FC = () => {
     benchGroup.add(matMesh);
 
     // Precision ESD Grid lines
-    const gridHelper = new THREE.GridHelper(50, 50, '#6d28d9', '#1e1b4b');
+    const gridHelper = new THREE.GridHelper(50, 50, '#0d9488', '#042f2e');
     gridHelper.position.y = 0.01;
     (gridHelper.material as THREE.Material).opacity = 0.22;
     (gridHelper.material as THREE.Material).transparent = true;
@@ -181,10 +181,10 @@ export const AnimatedCircuitBackground: React.FC = () => {
     const trackCurve = new THREE.CatmullRomCurve3(trackPoints, true, 'catmullrom', 0.18);
     const trackGeo = new THREE.TubeGeometry(trackCurve, 140, 0.16, 8, true);
     const trackMat = new THREE.MeshStandardMaterial({
-      color: '#7c3aed',
+      color: '#0d9488',
       roughness: 0.25,
       metalness: 0.85,
-      emissive: '#4c1d95',
+      emissive: '#115e59',
       emissiveIntensity: 0.45,
     });
     const trackMesh = new THREE.Mesh(trackGeo, trackMat);
@@ -534,7 +534,7 @@ export const AnimatedCircuitBackground: React.FC = () => {
       // Stamp indicator: Transmitter ("T") or Receiver ("R") marker dot
       const stampDot = new THREE.Mesh(
         new THREE.RingGeometry(0.02, 0.04, 8),
-        new THREE.MeshBasicMaterial({ color: isTransmitter ? '#38bdf8' : '#a855f7', side: THREE.DoubleSide })
+        new THREE.MeshBasicMaterial({ color: isTransmitter ? '#38bdf8' : '#34d399', side: THREE.DoubleSide })
       );
       stampDot.position.set(0, 0.14, 0.385);
       tGroup.add(stampDot);
@@ -812,7 +812,7 @@ export const AnimatedCircuitBackground: React.FC = () => {
 
         const echoWaveGeo = new THREE.RingGeometry(0.12, 0.2, 20, 1, -Math.PI * 0.35, Math.PI * 0.7);
         const echoWaveMat = new THREE.MeshBasicMaterial({
-          color: '#c084fc',
+          color: '#34d399',
           side: THREE.DoubleSide,
           transparent: true,
           opacity: 0.8,
@@ -877,13 +877,13 @@ export const AnimatedCircuitBackground: React.FC = () => {
     // Gripper Claws with Picked Sensor Component
     const clawLeft = new THREE.Mesh(
       new THREE.BoxGeometry(0.09, 0.65, 0.09),
-      new THREE.MeshStandardMaterial({ color: '#c084fc', metalness: 0.85, roughness: 0.15 })
+      new THREE.MeshStandardMaterial({ color: '#34d399', metalness: 0.85, roughness: 0.15 })
     );
     clawLeft.position.set(-0.2, 2.1, 0);
 
     const clawRight = new THREE.Mesh(
       new THREE.BoxGeometry(0.09, 0.65, 0.09),
-      new THREE.MeshStandardMaterial({ color: '#c084fc', metalness: 0.85, roughness: 0.15 })
+      new THREE.MeshStandardMaterial({ color: '#34d399', metalness: 0.85, roughness: 0.15 })
     );
     clawRight.position.set(0.2, 2.1, 0);
 

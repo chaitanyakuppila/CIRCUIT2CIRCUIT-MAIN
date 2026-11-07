@@ -111,7 +111,7 @@ export default function App() {
   const loadListings = () => {
     api.getListings()
       .then((res) => {
-        if (res.listings && res.listings.length > 0) {
+        if (Array.isArray(res.listings)) {
           setItems(res.listings);
         }
       })
@@ -125,7 +125,7 @@ export default function App() {
     }
   };
 
-  // Route sync for direct /signin and /register URLs
+  // Route sync for direct /signin, /register, and /admin URLs
   useEffect(() => {
     const syncRouteWithState = () => {
       const path = window.location.pathname.toLowerCase();
@@ -135,13 +135,26 @@ export default function App() {
       } else if (path === '/register' || path === '/signup') {
         setAuthMode('register');
         setIsAuthOpen(true);
+      } else if (path === '/admin') {
+        const isVerifiedAdmin = Boolean(
+          currentUser &&
+            currentUser.rollNumber &&
+            currentUser.rollNumber.trim().toUpperCase() === '25A81A4329'
+        );
+        if (isVerifiedAdmin) {
+          setIsAdminOpen(true);
+        } else {
+          setIsAdminOpen(false);
+          showToast('Access Denied: Campus Admin access is restricted exclusively to authorized administration (25A81A4329).');
+          window.history.replaceState(null, '', '/');
+        }
       }
     };
 
     syncRouteWithState();
     window.addEventListener('popstate', syncRouteWithState);
     return () => window.removeEventListener('popstate', syncRouteWithState);
-  }, []);
+  }, [currentUser]);
 
   const handleAuthSuccess = (user: StudentUser, message: string) => {
     setCurrentUser(user);
@@ -227,7 +240,7 @@ export default function App() {
     setRefreshListingsError(null);
     try {
       const res = await api.getListings();
-      if (res.listings && res.listings.length > 0) {
+      if (Array.isArray(res.listings)) {
         setItems(res.listings);
       }
     } catch (err: any) {
@@ -237,25 +250,39 @@ export default function App() {
     }
   };
 
+  const handleDeleteListing = async (listingId: string): Promise<boolean> => {
+    try {
+      await api.deleteListing(listingId);
+      // Remove from interface only after backend confirms success
+      setItems((prev) => prev.filter((i) => i.id !== listingId));
+      if (selectedItem && selectedItem.id === listingId) {
+        setSelectedItem(null);
+      }
+      showToast('Listing removed successfully from campus marketplace.');
+      return true;
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete listing.');
+      throw err;
+    }
+  };
+
+  const isAdmin = Boolean(
+    currentUser &&
+      currentUser.rollNumber &&
+      currentUser.rollNumber.trim().toUpperCase() === '25A81A4329'
+  );
+
   return (
-    <div className="relative min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-violet-500/20 selection:text-violet-300 overflow-x-hidden">
+    <div className="relative min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-teal-500/20 selection:text-teal-300 overflow-x-hidden">
       
       {/* Animated Circuit Canvas Background */}
       <AnimatedCircuitBackground />
 
       <div className="relative z-10 flex flex-col min-h-screen">
         
-        {/* College Notice Ribbon */}
-        <div className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800/80 text-[10px] sm:text-[11px] py-1.5 px-3 sm:px-4 text-center text-slate-300 flex items-center justify-center gap-2 font-medium">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span className="truncate sm:overflow-visible">
-            <strong className="text-white">Sri Vasavi Engineering College (Autonomous)</strong> · Student Electronics & Lab Components Exchange
-          </span>
-        </div>
-
         {/* Toast Notification */}
         {toastMessage && (
-          <div className="fixed bottom-6 left-6 z-50 flex items-center gap-3 bg-slate-900/95 border border-violet-500/50 text-white px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="fixed bottom-6 left-6 z-50 flex items-center gap-3 bg-slate-900/95 border border-teal-500/50 text-white px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-5 duration-300">
             <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
             <span className="text-xs font-semibold">{toastMessage}</span>
             <button 
@@ -279,7 +306,7 @@ export default function App() {
             setActiveChatConversationId(null);
             setIsChatOpen(true);
           }}
-          onOpenAdmin={() => setIsAdminOpen(true)}
+          onOpenAdmin={isAdmin ? () => setIsAdminOpen(true) : undefined}
         />
 
         {/* Main Content */}
@@ -295,6 +322,8 @@ export default function App() {
             items={items}
             onSelectItem={(item) => setSelectedItem(item)}
             onOpenListItem={handleOpenListItem}
+            currentUser={currentUser}
+            onDeleteListing={handleDeleteListing}
             selectedYearFilter={selectedYearFilter}
             onClearYearFilter={() => setSelectedYearFilter(null)}
             onStartChat={handleStartChat}
@@ -340,6 +369,7 @@ export default function App() {
         onOpenAuth={handleOpenAuth}
         onRequestSubmitted={loadListings}
         onStartChat={handleStartChat}
+        onDeleteListing={handleDeleteListing}
       />
 
       {/* 4th-Year Senior & Student Listing Modal */}
@@ -394,12 +424,14 @@ export default function App() {
       )}
 
       {/* Sri Vasavi Campus Administration & 48-Hour Dispute Oversight Modal */}
-      <AdminModal
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-        currentUser={currentUser}
-        showToast={showToast}
-      />
+      {isAdmin && (
+        <AdminModal
+          isOpen={isAdminOpen}
+          onClose={() => setIsAdminOpen(false)}
+          currentUser={currentUser}
+          showToast={showToast}
+        />
+      )}
 
     </div>
   );
